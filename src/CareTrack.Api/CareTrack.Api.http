@@ -1,0 +1,6 @@
+@CareTrack.Api_HostAddress = http://localhost:5193
+
+GET {{CareTrack.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

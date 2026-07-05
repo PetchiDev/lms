@@ -1,0 +1,33 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+*.DotSettings.user
+
+# Node
+node_modules/
+dist/
+*.local
+
+# Env / secrets
+.env
+.env.*
+appsettings.Production.json
+appsettings.*.local.json
+
+# IDE
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Azure
+.azure/

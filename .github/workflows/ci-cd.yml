@@ -1,0 +1,116 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  DOTNET_VERSION: '10.0.x'
+  NODE_VERSION: '24.x'
+  AZURE_WEBAPP_NAME: caretrack-api
+  AZURE_STATIC_WEBAPP_NAME: caretrack-web
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: Password@1
+          POSTGRES_DB: lms
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore & Build API
+        run: |
+          dotnet restore CareTrack.slnx
+          dotnet build CareTrack.slnx --configuration Release --no-restore
+
+      - name: Run Tests
+        env:
+          ConnectionStrings__DefaultConnection: Host=localhost;Port=5432;Database=lms;Username=postgres;Password=Password@1
+        run: dotnet test CareTrack.slnx --configuration Release --no-build --verbosity normal
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: web/caretrack-web/package-lock.json
+
+      - name: Build Frontend
+        working-directory: web/caretrack-web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Publish API
+        run: dotnet publish src/CareTrack.Api/CareTrack.Api.csproj -c Release -o ./publish/api
+
+      - name: Upload API artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: api
+          path: ./publish/api
+
+      - name: Upload Web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: web/caretrack-web/dist
+
+  deploy-api:
+    needs: build-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Download API artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: api
+          path: ./publish/api
+
+      - name: Deploy to Azure App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: ./publish/api
+
+  deploy-web:
+    needs: build-test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    steps:
+      - name: Download Web artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web
+          path: web/caretrack-web/dist
+
+      - name: Deploy to Azure Static Web Apps
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: upload
+          app_location: web/caretrack-web/dist
+          skip_app_build: true
