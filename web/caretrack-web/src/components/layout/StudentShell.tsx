@@ -3,6 +3,7 @@ import { Bell, ChevronDown, LogOut, Menu, Settings, X, type LucideIcon } from 'l
 import { useEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { authStore } from '@/lib/auth-store'
+import { clearStudentCache } from '@/lib/query-client'
 import { BrandLogo } from '@/components/brand/BrandLogo'
 import { cn } from '@/lib/utils'
 
@@ -158,7 +159,7 @@ export function StudentShell({
                     </div>
                     <button
                       type="button"
-                      onClick={() => { authStore.clear(); navigate('/login') }}
+                      onClick={() => { authStore.clear(); clearStudentCache(); navigate('/login') }}
                       className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
                     >
                       <LogOut className="h-4 w-4" /> Sign out

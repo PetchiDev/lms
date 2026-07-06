@@ -4,6 +4,7 @@ import { BookOpen, Building2, GraduationCap, Stethoscope } from 'lucide-react'
 import gsap from 'gsap'
 import { api, getErrorMessage } from '@/lib/api-client'
 import { authStore } from '@/lib/auth-store'
+import { clearStudentCache } from '@/lib/query-client'
 import { getRoleRedirect } from '@/lib/utils'
 import { BrandLogo } from '@/components/brand/BrandLogo'
 import { Button } from '@/components/ui/button'
@@ -48,6 +49,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       const { data } = await api.post('/auth/login', { email, password })
+      clearStudentCache()
       authStore.set(data)
       navigate(getRoleRedirect(data.role))
     } catch (err) {

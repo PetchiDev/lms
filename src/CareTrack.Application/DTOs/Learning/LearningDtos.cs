@@ -15,7 +15,9 @@ public record EnrolledModuleResponse(
     int ProgressPercent,
     bool IsLocked,
     string? LockReason,
-    bool IsCompleted);
+    bool IsCompleted,
+    bool QuizPassed,
+    int? BestQuizScorePercent);
 
 public record ModuleDetailResponse(
     Guid Id,

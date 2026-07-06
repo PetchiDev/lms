@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from '@/lib/query-client'
 import { ProtectedRoute } from '@/app/ProtectedRoute'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ApolloDashboard } from '@/features/apollo/ApolloDashboard'
@@ -23,10 +24,6 @@ import { ModulePage, LessonPlayerPage, QuizPage } from '@/features/student/Stude
 import { UniversityReportsPage, ApolloReportsPage } from '@/features/reports/ReportsPages'
 import { authStore } from '@/lib/auth-store'
 import { getRoleRedirect } from '@/lib/utils'
-
-const queryClient = new QueryClient({
-  defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
-})
 
 function RootRedirect() {
   const auth = authStore.get()

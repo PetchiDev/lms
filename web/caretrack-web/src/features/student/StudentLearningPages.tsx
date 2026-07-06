@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle, CheckCircle2, Download, Play } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { authStore } from '@/lib/auth-store'
+import { studentQueryKey } from '@/lib/query-client'
 import { STUDENT_NAV } from '@/lib/student-nav'
 import { animateUnlock } from '@/animations/usePageTransition'
 import { StudentShell } from '@/components/layout/StudentShell'
@@ -13,7 +14,7 @@ import { ProgressBar } from '@/components/ui/label'
 function useStudentShellProps() {
   const auth = authStore.get()!
   const { data } = useQuery({
-    queryKey: ['student-dashboard'],
+    queryKey: studentQueryKey('dashboard'),
     queryFn: async () => (await api.get('/students/me/dashboard')).data,
   })
   return {
@@ -32,7 +33,7 @@ export function ModulePage() {
   const shell = useStudentShellProps()
 
   const { data: module } = useQuery({
-    queryKey: ['module', moduleId],
+    queryKey: studentQueryKey('module', moduleId),
     queryFn: async () => (await api.get(`/students/me/modules/${moduleId}`)).data,
     enabled: !!moduleId,
   })
@@ -40,8 +41,8 @@ export function ModulePage() {
   const markAll = useMutation({
     mutationFn: async () => (await api.post(`/students/me/modules/${moduleId}/complete-all`)).data,
     onSuccess: (result: { allCurriculumComplete: boolean; moduleCompleted: boolean }) => {
-      queryClient.invalidateQueries({ queryKey: ['module', moduleId] })
-      queryClient.invalidateQueries({ queryKey: ['student-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: studentQueryKey('module', moduleId) })
+      queryClient.invalidateQueries({ queryKey: studentQueryKey('dashboard') })
       if (result.allCurriculumComplete) {
         navigate('/dashboard/assessments')
       } else if (result.moduleCompleted) {
@@ -109,7 +110,7 @@ export function LessonPlayerPage() {
   const shell = useStudentShellProps()
 
   const { data: lesson } = useQuery({
-    queryKey: ['lesson', lessonId],
+    queryKey: studentQueryKey('lesson', lessonId),
     queryFn: async () => (await api.get(`/students/me/lessons/${lessonId}`)).data,
     enabled: !!lessonId,
   })
@@ -122,8 +123,9 @@ export function LessonPlayerPage() {
   const markComplete = useMutation({
     mutationFn: async () => api.post(`/students/me/lessons/${lessonId}/complete`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['lesson', lessonId] })
-      queryClient.invalidateQueries({ queryKey: ['student-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: studentQueryKey('lesson', lessonId) })
+      queryClient.invalidateQueries({ queryKey: studentQueryKey('dashboard') })
+      queryClient.invalidateQueries({ queryKey: studentQueryKey('module') })
     },
   })
 
@@ -193,7 +195,7 @@ export function QuizPage() {
   const queryClient = useQueryClient()
 
   const { data: quiz } = useQuery({
-    queryKey: ['quiz', moduleId],
+    queryKey: studentQueryKey('quiz', moduleId),
     queryFn: async () => (await api.get(`/students/me/modules/${moduleId}/quiz`)).data,
     enabled: !!moduleId,
   })
@@ -208,7 +210,8 @@ export function QuizPage() {
     }
     const { data } = await api.post(`/students/me/quizzes/${quiz.id}/attempts`, payload)
     setResult(data)
-    queryClient.invalidateQueries({ queryKey: ['student-dashboard'] })
+    queryClient.invalidateQueries({ queryKey: studentQueryKey('dashboard') })
+    queryClient.invalidateQueries({ queryKey: studentQueryKey('quiz', moduleId) })
   }
 
   return (

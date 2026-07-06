@@ -4,6 +4,7 @@ using CareTrack.Domain.Enums;
 using CareTrack.Domain.Exceptions;
 using CareTrack.Infrastructure;
 using CareTrack.Infrastructure.Identity;
+using CareTrack.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,17 +16,20 @@ public class AuthService : IAuthService
     private readonly SignInManager<ApplicationUser> _signInManager;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly JwtSettings _jwtSettings;
+    private readonly CareTrackDbContext _db;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
         SignInManager<ApplicationUser> signInManager,
         IJwtTokenService jwtTokenService,
-        Microsoft.Extensions.Options.IOptions<JwtSettings> jwtSettings)
+        Microsoft.Extensions.Options.IOptions<JwtSettings> jwtSettings,
+        CareTrackDbContext db)
     {
         _userManager = userManager;
         _signInManager = signInManager;
         _jwtTokenService = jwtTokenService;
         _jwtSettings = jwtSettings.Value;
+        _db = db;
     }
 
     public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken = default)
@@ -39,6 +43,20 @@ public class AuthService : IAuthService
         var result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: false);
         if (!result.Succeeded)
             throw new NotFoundException("Invalid email or password.");
+
+        if (user.Role == UserRole.Student && !user.StudentId.HasValue)
+        {
+            var studentId = await _db.Students.AsNoTracking()
+                .Where(s => s.UserId == user.Id)
+                .Select(s => s.Id)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (studentId != Guid.Empty)
+            {
+                user.StudentId = studentId;
+                await _userManager.UpdateAsync(user);
+            }
+        }
 
         var token = _jwtTokenService.GenerateToken(
             user.Id, user.Email!, user.Role.ToString(), user.UniversityId, user.CohortId, user.StudentId, user.SupervisorId);

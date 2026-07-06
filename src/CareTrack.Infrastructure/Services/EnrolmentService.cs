@@ -81,7 +81,9 @@ public class EnrolmentService : IEnrolmentService
                 StudentId = student.Id,
                 CohortId = cohort.Id,
                 Status = EnrolmentStatus.Active,
-                ActivatedAt = now
+                ActivatedAt = now,
+                CurrentYear = 1,
+                CurrentSemester = 1
             });
 
             await _db.SaveChangesAsync(cancellationToken);

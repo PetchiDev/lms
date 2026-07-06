@@ -30,8 +30,9 @@ public class LearningService : ILearningService
         {
             var (locked, reason) = await IsModuleLockedAsync(ctx.StudentId, module.Id, cancellationToken);
             var progress = await GetModuleProgressPercentAsync(ctx.StudentId, module.Id, cancellationToken);
+            var (quizPassed, bestScore) = await GetModuleQuizStatusAsync(ctx.StudentId, module.Id, cancellationToken);
             moduleResponses.Add(new EnrolledModuleResponse(
-                module.Id, module.Title, progress, locked, reason, progress >= 100));
+                module.Id, module.Title, progress, locked, reason, progress >= 100, quizPassed, bestScore));
         }
 
         var overall = moduleResponses.Count == 0 ? 0 : (int)moduleResponses.Average(m => m.ProgressPercent);
@@ -147,7 +148,7 @@ public class LearningService : ILearningService
         progress.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
-        await UpdateModuleProgressAsync(ctx.StudentId, lessonId, cancellationToken);
+        await UpdateModuleProgressAsync(ctx.StudentId, lessonId, ctx.UniversityId, cancellationToken);
     }
 
     public async Task<MarkLessonCompleteResponse> MarkCompleteAsync(Guid lessonId, CancellationToken cancellationToken = default)
@@ -159,7 +160,7 @@ public class LearningService : ILearningService
 
         if (progress is null || progress.ProgressPercent < 90)
         {
-            await CompleteLessonAsync(ctx.StudentId, lessonId, cancellationToken);
+            await CompleteLessonAsync(ctx.StudentId, lessonId, ctx.UniversityId, cancellationToken);
             return new MarkLessonCompleteResponse(true, null);
         }
 
@@ -169,7 +170,7 @@ public class LearningService : ILearningService
         progress.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
-        await UpdateModuleProgressAsync(ctx.StudentId, lessonId, cancellationToken);
+        await UpdateModuleProgressAsync(ctx.StudentId, lessonId, ctx.UniversityId, cancellationToken);
 
         return new MarkLessonCompleteResponse(true, null);
     }
@@ -181,7 +182,7 @@ public class LearningService : ILearningService
 
         var lessonIds = await GetPublishedLessonIdsAsync(moduleId, ctx.UniversityId, cancellationToken);
         foreach (var lessonId in lessonIds)
-            await CompleteLessonAsync(ctx.StudentId, lessonId, cancellationToken);
+            await CompleteLessonAsync(ctx.StudentId, lessonId, ctx.UniversityId, cancellationToken);
 
         return await BuildBulkCompleteResponseAsync(ctx, moduleId, cancellationToken);
     }
@@ -195,13 +196,13 @@ public class LearningService : ILearningService
         {
             var lessonIds = await GetPublishedLessonIdsAsync(module.Id, ctx.UniversityId, cancellationToken);
             foreach (var lessonId in lessonIds)
-                await CompleteLessonAsync(ctx.StudentId, lessonId, cancellationToken);
+                await CompleteLessonAsync(ctx.StudentId, lessonId, ctx.UniversityId, cancellationToken);
         }
 
         return await BuildBulkCompleteResponseAsync(ctx, null, cancellationToken);
     }
 
-    private async Task CompleteLessonAsync(Guid studentId, Guid lessonId, CancellationToken cancellationToken)
+    private async Task CompleteLessonAsync(Guid studentId, Guid lessonId, Guid universityId, CancellationToken cancellationToken)
     {
         var progress = await _db.LessonProgresses
             .FirstOrDefaultAsync(p => p.StudentId == studentId && p.LessonId == lessonId, cancellationToken);
@@ -219,7 +220,7 @@ public class LearningService : ILearningService
         progress.UpdatedAt = DateTime.UtcNow;
 
         await _db.SaveChangesAsync(cancellationToken);
-        await UpdateModuleProgressAsync(studentId, lessonId, cancellationToken);
+        await UpdateModuleProgressAsync(studentId, lessonId, universityId, cancellationToken);
     }
 
     private async Task<List<Guid>> GetPublishedLessonIdsAsync(Guid moduleId, Guid universityId, CancellationToken cancellationToken)
@@ -260,18 +261,22 @@ public class LearningService : ILearningService
             overall);
     }
 
-    private async Task UpdateModuleProgressAsync(Guid studentId, Guid lessonId, CancellationToken cancellationToken)
+    private async Task UpdateModuleProgressAsync(Guid studentId, Guid lessonId, Guid universityId, CancellationToken cancellationToken)
     {
         var moduleId = await _db.Lessons.AsNoTracking()
             .Where(l => l.Id == lessonId)
             .Select(l => l.ModuleId)
             .FirstAsync(cancellationToken);
 
-        var totalLessons = await _db.Lessons.CountAsync(l =>
-            l.ModuleId == moduleId && l.Status == ContentStatus.Published, cancellationToken);
+        var publishedLessonIds = await GetPublishedLessonIdsAsync(moduleId, universityId, cancellationToken);
+        var totalLessons = publishedLessonIds.Count;
 
-        var completedLessons = await _db.LessonProgresses.CountAsync(p =>
-            p.StudentId == studentId && p.Lesson.ModuleId == moduleId && p.Status == LessonProgressStatus.Completed, cancellationToken);
+        var completedLessons = totalLessons == 0
+            ? 0
+            : await _db.LessonProgresses.CountAsync(p =>
+                p.StudentId == studentId
+                && publishedLessonIds.Contains(p.LessonId)
+                && p.Status == LessonProgressStatus.Completed, cancellationToken);
 
         var percent = totalLessons == 0 ? 0 : (int)(completedLessons * 100.0 / totalLessons);
 
@@ -298,6 +303,30 @@ public class LearningService : ILearningService
             .Where(p => p.StudentId == studentId && p.ModuleId == moduleId)
             .Select(p => p.ProgressPercent)
             .FirstOrDefaultAsync(cancellationToken);
+    }
+
+    private async Task<(bool Passed, int? BestScore)> GetModuleQuizStatusAsync(
+        Guid studentId,
+        Guid moduleId,
+        CancellationToken cancellationToken)
+    {
+        var quizId = await _db.Quizzes.AsNoTracking()
+            .Where(q => q.ModuleId == moduleId && q.IsActive)
+            .Select(q => q.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (quizId == Guid.Empty)
+            return (false, null);
+
+        var attempts = await _db.QuizAttempts.AsNoTracking()
+            .Where(a => a.QuizId == quizId && a.StudentId == studentId && a.SubmittedAt != null)
+            .Select(a => new { a.Passed, a.ScorePercent })
+            .ToListAsync(cancellationToken);
+
+        if (attempts.Count == 0)
+            return (false, null);
+
+        return (attempts.Any(a => a.Passed), attempts.Max(a => a.ScorePercent));
     }
 
     private async Task<(bool Locked, string? Reason)> IsModuleLockedAsync(Guid studentId, Guid moduleId, CancellationToken cancellationToken)

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ArrowRight, Bell, BookOpen, Calendar, Clock, Play, Sparkles } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { authStore } from '@/lib/auth-store'
+import { studentQueryKey } from '@/lib/query-client'
 import { STUDENT_NAV } from '@/lib/student-nav'
 import { cn } from '@/lib/utils'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
@@ -22,12 +23,12 @@ export function StudentDashboard() {
   const auth = authStore.get()!
 
   const { data } = useQuery({
-    queryKey: ['student-dashboard'],
+    queryKey: studentQueryKey('dashboard'),
     queryFn: async () => (await api.get('/students/me/dashboard')).data,
   })
 
   const { data: schedule } = useQuery({
-    queryKey: ['student-schedule'],
+    queryKey: studentQueryKey('schedule'),
     queryFn: async () => (await api.get('/calendar')).data,
   })
 

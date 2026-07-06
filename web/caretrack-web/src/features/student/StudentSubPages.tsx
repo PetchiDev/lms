@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BookOpen, CheckCircle2, ClipboardCheck, Lock, Play, Video } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { authStore } from '@/lib/auth-store'
+import { studentQueryKey } from '@/lib/query-client'
 import { STUDENT_NAV } from '@/lib/student-nav'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
 import { StudentShell } from '@/components/layout/StudentShell'
@@ -16,14 +17,14 @@ export function CurriculumPage() {
   const queryClient = useQueryClient()
 
   const { data } = useQuery({
-    queryKey: ['student-dashboard'],
+    queryKey: studentQueryKey('dashboard'),
     queryFn: async () => (await api.get('/students/me/dashboard')).data,
   })
 
   const markAll = useMutation({
     mutationFn: async () => (await api.post('/students/me/curriculum/complete-all')).data,
     onSuccess: (result: { allCurriculumComplete: boolean }) => {
-      queryClient.invalidateQueries({ queryKey: ['student-dashboard'] })
+      queryClient.invalidateQueries({ queryKey: studentQueryKey('dashboard') })
       if (result.allCurriculumComplete) navigate('/dashboard/assessments')
     },
   })
@@ -86,7 +87,7 @@ export function LiveClassesPage() {
   const animRef = useDashboardAnimation()
   const auth = authStore.get()!
   const { data: schedule } = useQuery({
-    queryKey: ['student-schedule'],
+    queryKey: studentQueryKey('schedule'),
     queryFn: async () => (await api.get('/calendar')).data,
   })
 
@@ -123,10 +124,10 @@ export function AssessmentsPage() {
   const animRef = useDashboardAnimation()
   const auth = authStore.get()!
   const { data } = useQuery({
-    queryKey: ['student-dashboard'],
+    queryKey: studentQueryKey('dashboard'),
     queryFn: async () => (await api.get('/students/me/dashboard')).data,
   })
-  const modules = data?.modules?.filter((m: { isCompleted: boolean; isLocked: boolean }) => !m.isLocked) ?? []
+  const modules = data?.modules?.filter((m: { isLocked: boolean }) => !m.isLocked) ?? []
 
   return (
     <StudentShell userName={data?.studentName ?? auth.fullName} tenantLabel="Meridian × Apollo" yearLabel="Assessments" navItems={STUDENT_NAV}>
@@ -134,16 +135,21 @@ export function AssessmentsPage() {
         <h1 className="font-display text-3xl font-bold text-[#1a1d1f]">Assessments</h1>
         <p className="mt-2 text-slate-600">Quizzes unlock when you complete all lessons in a module.</p>
         <div className="mt-8 space-y-4">
-          {modules.map((m: { id: string; title: string; progressPercent: number }) => (
+          {modules.map((m: { id: string; title: string; progressPercent: number; quizPassed: boolean; bestQuizScorePercent?: number }) => (
             <div key={m.id} data-animate-card className="flex items-center justify-between rounded-2xl border border-[#e0e4d8] bg-white p-5 shadow-sm">
               <div className="flex items-center gap-4">
                 <ClipboardCheck className="h-8 w-8 text-[#2d5f5a]" />
                 <div>
                   <p className="font-medium">{m.title} — Quiz</p>
-                  <p className="text-sm text-slate-500">Module progress: {m.progressPercent}%</p>
+                  <p className="text-sm text-slate-500">
+                    Your module progress: {m.progressPercent}%
+                    {m.bestQuizScorePercent != null && ` · Best score: ${m.bestQuizScorePercent}%`}
+                  </p>
                 </div>
               </div>
-              {m.progressPercent >= 100 ? (
+              {m.quizPassed ? (
+                <span className="rounded-full bg-emerald-100 px-3 py-1 text-sm font-medium text-emerald-700">Passed ✓</span>
+              ) : m.progressPercent >= 100 ? (
                 <Button className="bg-[#2d5f5a]" asChild>
                   <Link to={`/learn/modules/${m.id}/quiz`}>Take Quiz</Link>
                 </Button>

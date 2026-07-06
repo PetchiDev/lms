@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { authStore } from './auth-store'
+import { clearStudentCache } from './query-client'
 
 export const api = axios.create({
   baseURL: '/api/v1',
@@ -20,6 +21,7 @@ api.interceptors.response.use(
     const isLoginRequest = error.config?.url?.includes('/auth/login')
     if (error.response?.status === 401 && !isLoginRequest) {
       authStore.clear()
+      clearStudentCache()
       if (window.location.pathname !== '/login') {
         window.location.assign('/login')
       }
