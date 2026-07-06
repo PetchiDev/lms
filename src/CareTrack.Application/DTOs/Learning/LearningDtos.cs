@@ -3,6 +3,8 @@ namespace CareTrack.Application.DTOs.Learning;
 public record StudentDashboardResponse(
     string StudentName,
     string CohortName,
+    int CurrentYear,
+    int CurrentSemester,
     int OverallProgressPercent,
     IReadOnlyList<EnrolledModuleResponse> Modules,
     IReadOnlyList<string> Notices);
@@ -49,3 +51,9 @@ public record LessonAssetResponse(
 public record UpdateLessonProgressRequest(int WatchedSeconds, int ProgressPercent);
 
 public record MarkLessonCompleteResponse(bool Success, string? Message);
+
+public record BulkCompleteResponse(
+    int ModuleProgressPercent,
+    bool ModuleCompleted,
+    bool AllCurriculumComplete,
+    int OverallProgressPercent);

@@ -11,7 +11,7 @@ interface StatCardProps {
 }
 
 const accentMap = {
-  teal: 'from-teal-500/20 to-teal-600/5 text-teal-700 border-teal-200/60',
+  teal: 'from-[#2081A1]/15 to-[#2081A1]/5 text-[#1a6d89] border-[#2081A1]/25',
   blue: 'from-blue-500/20 to-blue-600/5 text-blue-700 border-blue-200/60',
   amber: 'from-amber-500/20 to-amber-600/5 text-amber-700 border-amber-200/60',
   rose: 'from-rose-500/20 to-rose-600/5 text-rose-700 border-rose-200/60',

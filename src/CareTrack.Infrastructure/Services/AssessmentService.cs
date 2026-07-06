@@ -1,14 +1,12 @@
 using CareTrack.Application.Common;
 using CareTrack.Application.DTOs.Assessment;
+using CareTrack.Application.DTOs.Certificates;
 using CareTrack.Application.Interfaces;
 using CareTrack.Domain.Entities;
 using CareTrack.Domain.Enums;
 using CareTrack.Domain.Exceptions;
 using CareTrack.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
-using QuestPDF.Fluent;
-using QuestPDF.Helpers;
-using QuestPDF.Infrastructure;
 
 namespace CareTrack.Infrastructure.Services;
 
@@ -16,14 +14,13 @@ public class AssessmentService : IAssessmentService
 {
     private readonly CareTrackDbContext _db;
     private readonly ITenantContext _tenant;
-    private readonly IBlobStorageService _blobStorage;
+    private readonly ICertificateService _certificateService;
 
-    public AssessmentService(CareTrackDbContext db, ITenantContext tenant, IBlobStorageService blobStorage)
+    public AssessmentService(CareTrackDbContext db, ITenantContext tenant, ICertificateService certificateService)
     {
         _db = db;
         _tenant = tenant;
-        _blobStorage = blobStorage;
-        QuestPDF.Settings.License = LicenseType.Community;
+        _certificateService = certificateService;
     }
 
     public async Task<QuizResponse> GetQuizAsync(Guid moduleId, CancellationToken cancellationToken = default)
@@ -129,23 +126,35 @@ public class AssessmentService : IAssessmentService
 
         await _db.SaveChangesAsync(cancellationToken);
 
+        CertificateResponse? certificate = null;
+        if (attempt.Passed && attempt.ScorePercent >= 60)
+            certificate = await _certificateService.GenerateForCurrentStudentAsync(cancellationToken);
+
+        SemesterCompletionResponse? semesterAdvance = null;
+        if (attempt.Passed)
+            semesterAdvance = await TryAdvanceSemesterAsync(studentId, cancellationToken);
+
         return new QuizAttemptResponse(
             attempt.Id,
             attempt.ScorePercent,
             attempt.Passed,
             attempt.AttemptNumber,
-            attempt.SubmittedAt!.Value);
+            attempt.SubmittedAt!.Value,
+            certificate,
+            semesterAdvance);
     }
 
     public async Task<IReadOnlyList<QuizAttemptResponse>> GetAttemptsAsync(Guid quizId, CancellationToken cancellationToken = default)
     {
         var studentId = GetStudentId();
 
-        return await _db.QuizAttempts.AsNoTracking()
+        var attempts = await _db.QuizAttempts.AsNoTracking()
             .Where(a => a.QuizId == quizId && a.StudentId == studentId && a.SubmittedAt != null)
             .OrderByDescending(a => a.SubmittedAt)
             .Select(a => new QuizAttemptResponse(a.Id, a.ScorePercent, a.Passed, a.AttemptNumber, a.SubmittedAt!.Value))
             .ToListAsync(cancellationToken);
+
+        return attempts;
     }
 
     public async Task RecordOfflineResultAsync(OfflineAssessmentRequest request, CancellationToken cancellationToken = default)
@@ -170,44 +179,63 @@ public class AssessmentService : IAssessmentService
     public async Task<SemesterCompletionResponse> CheckSemesterCompletionAsync(CancellationToken cancellationToken = default)
     {
         var studentId = GetStudentId();
+        return await TryAdvanceSemesterAsync(studentId, cancellationToken)
+            ?? new SemesterCompletionResponse(false, "Complete all modules and pass all assessments for this semester first.", null, null);
+    }
 
-        var cohort = await _db.Cohorts.AsNoTracking()
-            .FirstOrDefaultAsync(c => c.Id == _tenant.CohortId, cancellationToken)
-            ?? throw new NotFoundException("Cohort not found.");
+    private async Task<SemesterCompletionResponse?> TryAdvanceSemesterAsync(Guid studentId, CancellationToken cancellationToken)
+    {
+        if (!_tenant.UniversityId.HasValue)
+            return null;
+
+        var enrolment = await _db.StudentEnrolments
+            .Include(e => e.Cohort).ThenInclude(c => c.Programme)
+            .FirstOrDefaultAsync(e => e.StudentId == studentId && e.UniversityId == _tenant.UniversityId, cancellationToken);
+
+        if (enrolment is null)
+            return null;
+
+        var programmeId = enrolment.Cohort.ProgrammeId;
+        var currentYear = enrolment.CurrentYear;
+        var currentSemester = enrolment.CurrentSemester;
 
         var modules = await _db.Modules.AsNoTracking()
-            .Where(m => m.Semester.ProgrammeYear.ProgrammeId == cohort.ProgrammeId)
-            .Where(m => m.Semester.ProgrammeYear.YearNumber == cohort.CurrentYear)
-            .Where(m => m.Semester.SemesterNumber == cohort.CurrentSemester)
+            .Where(m => m.Semester.ProgrammeYear.ProgrammeId == programmeId)
+            .Where(m => m.Semester.ProgrammeYear.YearNumber == currentYear)
+            .Where(m => m.Semester.SemesterNumber == currentSemester)
             .Select(m => m.Id)
             .ToListAsync(cancellationToken);
+
+        if (modules.Count == 0)
+            return null;
 
         foreach (var moduleId in modules)
         {
             var moduleDone = await _db.ModuleProgresses.AnyAsync(p =>
                 p.StudentId == studentId && p.ModuleId == moduleId && p.IsCompleted, cancellationToken);
             if (!moduleDone)
-                return new SemesterCompletionResponse(false, "Complete all modules first.", null, null);
+                return null;
 
-            var quizPassed = await _db.Quizzes.AsNoTracking()
-                .Where(q => q.ModuleId == moduleId)
-                .AllAsync(q => _db.QuizAttempts.Any(a =>
-                    a.QuizId == q.Id && a.StudentId == studentId && a.Passed), cancellationToken);
+            var quizzes = await _db.Quizzes.AsNoTracking()
+                .Where(q => q.ModuleId == moduleId && q.IsActive)
+                .Select(q => q.Id)
+                .ToListAsync(cancellationToken);
 
-            if (!quizPassed)
-                return new SemesterCompletionResponse(false, "Pass all module quizzes first.", null, null);
+            foreach (var quizId in quizzes)
+            {
+                var passed = await _db.QuizAttempts.AnyAsync(a =>
+                    a.QuizId == quizId && a.StudentId == studentId && a.Passed, cancellationToken);
+                if (!passed)
+                    return null;
+            }
         }
 
-        var cohortEntity = await _db.Cohorts
-            .Include(c => c.Programme)
-            .FirstAsync(c => c.Id == cohort.Id, cancellationToken);
-
-        var newSemester = cohortEntity.CurrentSemester + 1;
-        var newYear = cohortEntity.CurrentYear;
-
         var maxSemester = await _db.Semesters.AsNoTracking()
-            .Where(s => s.ProgrammeYear.ProgrammeId == cohort.ProgrammeId && s.ProgrammeYear.YearNumber == cohort.CurrentYear)
+            .Where(s => s.ProgrammeYear.ProgrammeId == programmeId && s.ProgrammeYear.YearNumber == currentYear)
             .MaxAsync(s => (int?)s.SemesterNumber, cancellationToken) ?? 2;
+
+        var newSemester = currentSemester + 1;
+        var newYear = currentYear;
 
         if (newSemester > maxSemester)
         {
@@ -215,70 +243,251 @@ public class AssessmentService : IAssessmentService
             newYear++;
         }
 
-        cohortEntity.CurrentSemester = newSemester;
-        cohortEntity.CurrentYear = newYear;
-        cohortEntity.UpdatedAt = DateTime.UtcNow;
+        if (newYear > enrolment.Cohort.Programme.DurationYears)
+        {
+            await _certificateService.GenerateForCurrentStudentAsync(cancellationToken);
+            return new SemesterCompletionResponse(
+                true,
+                "Congratulations! You have completed the entire programme.",
+                currentYear,
+                currentSemester);
+        }
 
+        enrolment.CurrentYear = newYear;
+        enrolment.CurrentSemester = newSemester;
+        enrolment.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
 
-        if (newYear > cohortEntity.Programme.DurationYears)
-            await GenerateCertificateAsync(cancellationToken);
-
-        return new SemesterCompletionResponse(true, "Semester completed. Next semester unlocked.", newYear, newSemester);
+        return new SemesterCompletionResponse(
+            true,
+            $"Semester complete! Year {newYear} · Semester {newSemester} is now unlocked.",
+            newYear,
+            newSemester);
     }
 
-    public async Task<CertificateResponse?> GenerateCertificateAsync(CancellationToken cancellationToken = default)
+    public Task<CertificateResponse?> GenerateCertificateAsync(CancellationToken cancellationToken = default)
+        => _certificateService.GenerateForCurrentStudentAsync(cancellationToken);
+
+    public async Task<ProgrammeAssessmentOverviewResponse> GetProgrammeOverviewAsync(Guid programmeId, CancellationToken cancellationToken = default)
     {
-        var studentId = GetStudentId();
+        EnsureApolloUser();
 
-        var student = await _db.Students.AsNoTracking()
-            .Include(s => s.Enrolments).ThenInclude(e => e.Cohort).ThenInclude(c => c.Programme)
-            .FirstOrDefaultAsync(s => s.Id == studentId, cancellationToken)
-            ?? throw new NotFoundException("Student not found.");
+        var programme = await _db.Programmes.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == programmeId, cancellationToken)
+            ?? throw new NotFoundException("Programme not found.");
 
-        var programme = student.Enrolments.First().Cohort.Programme;
-
-        var existing = await _db.Certificates.AsNoTracking()
-            .FirstOrDefaultAsync(c => c.StudentId == studentId && c.ProgrammeId == programme.Id, cancellationToken);
-
-        if (existing is not null)
-            return new CertificateResponse(existing.Id, existing.CertificateNumber, existing.IssuedAt, existing.PdfBlobUrl);
-
-        var certNumber = $"CT-{DateTime.UtcNow:yyyy}-{Guid.NewGuid():N}"[..20].ToUpperInvariant();
-        using var pdfStream = new MemoryStream();
-        Document.Create(container =>
-        {
-            container.Page(page =>
+        var modules = await _db.Modules.AsNoTracking()
+            .Where(m => m.Semester.ProgrammeYear.ProgrammeId == programmeId)
+            .OrderBy(m => m.Semester.ProgrammeYear.YearNumber)
+            .ThenBy(m => m.Semester.SemesterNumber)
+            .ThenBy(m => m.SortOrder)
+            .Select(m => new
             {
-                page.Size(PageSizes.A4);
-                page.Margin(50);
-                page.Content().Column(col =>
+                m.Id,
+                m.Title,
+                YearNumber = m.Semester.ProgrammeYear.YearNumber,
+                m.Semester.SemesterNumber,
+                SemesterName = m.Semester.Name,
+                Quiz = m.Quizzes.OrderBy(q => q.CreatedAt).Select(q => new
                 {
-                    col.Item().AlignCenter().Text("CareTrack Certificate").FontSize(24).Bold();
-                    col.Item().PaddingVertical(20).AlignCenter().Text($"This certifies that {student.FirstName} {student.LastName}")
-                        .FontSize(16);
-                    col.Item().AlignCenter().Text($"has completed {programme.Name}").FontSize(14);
-                    col.Item().PaddingTop(20).AlignCenter().Text($"Certificate No: {certNumber}").FontSize(10);
-                    col.Item().AlignCenter().Text($"Issued: {DateTime.UtcNow:dd MMM yyyy}").FontSize(10);
-                });
-            });
-        }).GeneratePdf(pdfStream);
+                    q.Id,
+                    q.Title,
+                    QuestionCount = q.Questions.Count,
+                    q.IsActive,
+                    AttemptCount = q.Attempts.Count
+                }).FirstOrDefault()
+            })
+            .ToListAsync(cancellationToken);
 
-        pdfStream.Position = 0;
-        var blobUrl = await _blobStorage.UploadAsync(pdfStream, $"{certNumber}.pdf", "application/pdf", cancellationToken);
+        var summaries = modules.Select(m => new ModuleAssessmentSummaryResponse(
+            m.Id,
+            m.Title,
+            m.YearNumber,
+            m.SemesterNumber,
+            m.SemesterName,
+            m.Quiz?.Id,
+            m.Quiz?.Title,
+            m.Quiz?.QuestionCount ?? 0,
+            m.Quiz?.IsActive ?? false,
+            m.Quiz?.AttemptCount ?? 0)).ToList();
 
-        var certificate = new Certificate
+        return new ProgrammeAssessmentOverviewResponse(programme.Id, programme.Name, summaries);
+    }
+
+    public async Task<AdminQuizDetailResponse> GetAdminQuizAsync(Guid moduleId, CancellationToken cancellationToken = default)
+    {
+        EnsureApolloUser();
+
+        var module = await _db.Modules.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
+            ?? throw new NotFoundException("Module not found.");
+
+        var quiz = await _db.Quizzes.AsNoTracking()
+            .Where(q => q.ModuleId == moduleId)
+            .OrderBy(q => q.CreatedAt)
+            .Select(q => new
+            {
+                q.Id,
+                q.Title,
+                q.PassPercentage,
+                q.TimeLimitMinutes,
+                q.MaxAttempts,
+                q.CooldownHours,
+                q.IsActive,
+                AttemptCount = q.Attempts.Count,
+                Questions = q.Questions.OrderBy(x => x.SortOrder).Select(x => new AdminQuizQuestionResponse(
+                    x.Id,
+                    x.QuestionText,
+                    x.Points,
+                    x.SortOrder,
+                    x.Options.OrderBy(o => o.SortOrder).Select(o => new AdminQuizOptionResponse(o.Id, o.OptionText, o.IsCorrect)).ToList()
+                )).ToList()
+            })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (quiz is null)
         {
-            StudentId = studentId,
-            ProgrammeId = programme.Id,
-            CertificateNumber = certNumber,
-            PdfBlobUrl = blobUrl
-        };
+            return new AdminQuizDetailResponse(
+                null,
+                module.Id,
+                module.Title,
+                $"{module.Title} Assessment",
+                60,
+                30,
+                3,
+                24,
+                true,
+                0,
+                false,
+                []);
+        }
 
-        _db.Certificates.Add(certificate);
+        return new AdminQuizDetailResponse(
+            quiz.Id,
+            module.Id,
+            module.Title,
+            quiz.Title,
+            quiz.PassPercentage,
+            quiz.TimeLimitMinutes,
+            quiz.MaxAttempts,
+            quiz.CooldownHours,
+            quiz.IsActive,
+            quiz.AttemptCount,
+            quiz.AttemptCount > 0,
+            quiz.Questions);
+    }
+
+    public async Task<AdminQuizDetailResponse> UpsertQuizAsync(Guid moduleId, UpsertQuizRequest request, CancellationToken cancellationToken = default)
+    {
+        EnsureApolloUser();
+
+        var module = await _db.Modules.AsNoTracking()
+            .FirstOrDefaultAsync(m => m.Id == moduleId, cancellationToken)
+            ?? throw new NotFoundException("Module not found.");
+
+        var quiz = await _db.Quizzes
+            .Include(q => q.Questions).ThenInclude(q => q.Options)
+            .Include(q => q.Attempts)
+            .FirstOrDefaultAsync(q => q.ModuleId == moduleId, cancellationToken);
+
+        var attemptCount = quiz?.Attempts.Count ?? 0;
+        ValidateUpsertRequest(request, requireQuestions: attemptCount == 0);
+
+        if (quiz is null)
+        {
+            quiz = new Quiz { ModuleId = moduleId };
+            _db.Quizzes.Add(quiz);
+        }
+
+        attemptCount = quiz.Attempts.Count;
+
+        quiz.Title = request.Title.Trim();
+        quiz.PassPercentage = request.PassPercentage;
+        quiz.TimeLimitMinutes = request.TimeLimitMinutes;
+        quiz.MaxAttempts = request.MaxAttempts;
+        quiz.CooldownHours = request.CooldownHours;
+        quiz.IsActive = request.IsActive;
+        quiz.UpdatedAt = DateTime.UtcNow;
+
+        if (attemptCount == 0)
+        {
+            if (quiz.Questions.Count > 0)
+            {
+                _db.QuizOptions.RemoveRange(quiz.Questions.SelectMany(q => q.Options));
+                _db.QuizQuestions.RemoveRange(quiz.Questions);
+                quiz.Questions.Clear();
+            }
+
+            for (var i = 0; i < request.Questions.Count; i++)
+            {
+                var qReq = request.Questions[i];
+                var question = new QuizQuestion
+                {
+                    QuestionText = qReq.QuestionText.Trim(),
+                    Points = qReq.Points,
+                    SortOrder = i + 1
+                };
+
+                for (var j = 0; j < qReq.Options.Count; j++)
+                {
+                    var oReq = qReq.Options[j];
+                    question.Options.Add(new QuizOption
+                    {
+                        OptionText = oReq.OptionText.Trim(),
+                        IsCorrect = oReq.IsCorrect,
+                        SortOrder = j + 1
+                    });
+                }
+
+                quiz.Questions.Add(question);
+            }
+        }
+
         await _db.SaveChangesAsync(cancellationToken);
 
-        return new CertificateResponse(certificate.Id, certificate.CertificateNumber, certificate.IssuedAt, certificate.PdfBlobUrl);
+        return await GetAdminQuizAsync(moduleId, cancellationToken);
+    }
+
+    private void EnsureApolloUser()
+    {
+        if (_tenant.Role is not (UserRole.ApolloAdmin or UserRole.ApolloFaculty))
+            throw new ForbiddenException("Apollo staff access only.");
+    }
+
+    private static void ValidateUpsertRequest(UpsertQuizRequest request, bool requireQuestions)
+    {
+        if (string.IsNullOrWhiteSpace(request.Title))
+            throw new ValidationException("Assessment title is required.");
+
+        if (request.PassPercentage is < 1 or > 100)
+            throw new ValidationException("Pass percentage must be between 1 and 100.");
+
+        if (request.TimeLimitMinutes < 1)
+            throw new ValidationException("Time limit must be at least 1 minute.");
+
+        if (request.MaxAttempts < 1)
+            throw new ValidationException("Max attempts must be at least 1.");
+
+        if (!requireQuestions)
+            return;
+
+        if (request.Questions.Count == 0)
+            throw new ValidationException("Add at least one question.");
+
+        foreach (var question in request.Questions)
+        {
+            if (string.IsNullOrWhiteSpace(question.QuestionText))
+                throw new ValidationException("Every question must have text.");
+
+            if (question.Options.Count < 2)
+                throw new ValidationException("Each question needs at least two options.");
+
+            if (question.Options.Count(o => o.IsCorrect) != 1)
+                throw new ValidationException("Each question must have exactly one correct answer.");
+
+            if (question.Options.Any(o => string.IsNullOrWhiteSpace(o.OptionText)))
+                throw new ValidationException("Every option must have text.");
+        }
     }
 
     private Guid GetStudentId()

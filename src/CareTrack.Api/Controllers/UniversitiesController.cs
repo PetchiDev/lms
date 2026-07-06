@@ -42,6 +42,16 @@ public class UniversitiesController : ControllerBase
     [ProducesResponseType(typeof(UniversityResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<UniversityResponse>> Update(Guid id, [FromBody] UpdateUniversityRequest request, CancellationToken cancellationToken)
         => Ok(await _service.UpdateAsync(id, request, cancellationToken));
+
+    /// <summary>Link programmes to a partner university.</summary>
+    [HttpPut("{id:guid}/programmes")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
+    [ProducesResponseType(typeof(UniversityResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<UniversityResponse>> SetProgrammes(
+        Guid id,
+        [FromBody] SetUniversityProgrammesRequest request,
+        CancellationToken cancellationToken)
+        => Ok(await _service.SetProgrammesAsync(id, request, cancellationToken));
 }
 
 [ApiController]
@@ -60,5 +70,16 @@ public class UsersController : ControllerBase
     {
         await _service.InviteUniversityAdminAsync(request, cancellationToken);
         return NoContent();
+    }
+
+    /// <summary>Creates an active university admin with password (no invite email).</summary>
+    [HttpPost("university-admins/direct")]
+    [ProducesResponseType(typeof(UniversityAdminResponse), StatusCodes.Status201Created)]
+    public async Task<ActionResult<UniversityAdminResponse>> CreateUniversityAdmin(
+        [FromBody] CreateUniversityAdminDirectRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _service.CreateUniversityAdminAsync(request, cancellationToken);
+        return Created(string.Empty, result);
     }
 }

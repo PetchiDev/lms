@@ -1,14 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
-import {
-  BarChart3,
-  BookOpen,
-  Building2,
-  FileStack,
-  Globe,
-  LayoutDashboard,
-  Users,
-} from 'lucide-react'
+import { BookOpen, Building2, ClipboardList, FileStack, Globe, Layers, Users } from 'lucide-react'
+import { getApolloNavItems } from '@/lib/apollo-nav'
 import { api } from '@/lib/api-client'
 import { authStore } from '@/lib/auth-store'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
@@ -36,17 +29,12 @@ export function ApolloDashboard() {
 
   return (
     <DashboardShell
-      accent="indigo"
+      accent="apollo"
       roleLabel="Apollo Console"
       portalTitle="Platform Overview"
       userName={auth.fullName}
       tenantLabel="Cross-tenant · Content Owner"
-      navItems={[
-        { label: 'Overview', href: '/console', icon: LayoutDashboard },
-        { label: 'Content Library', href: '/apollo/content', icon: BookOpen },
-        { label: 'Universities', href: '/console', icon: Building2 },
-        { label: 'Analytics', href: '/apollo/reports', icon: BarChart3 },
-      ]}
+      navItems={getApolloNavItems(auth.role === 'ApolloAdmin')}
     >
       <div ref={animRef} className="space-y-8">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -84,7 +72,13 @@ export function ApolloDashboard() {
                 <Link to="/apollo/content"><BookOpen className="mr-2 h-4 w-4" />Upload & publish content</Link>
               </Button>
               <Button variant="outline" className="w-full justify-start" asChild>
-                <Link to="/apollo/reports"><BarChart3 className="mr-2 h-4 w-4" />View analytics</Link>
+                <Link to="/apollo/universities"><Building2 className="mr-2 h-4 w-4" />Manage universities</Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start" asChild>
+                <Link to="/apollo/catalogue"><Layers className="mr-2 h-4 w-4" />Programme catalogue</Link>
+              </Button>
+              <Button variant="outline" className="w-full justify-start" asChild>
+                <Link to="/apollo/assessments"><ClipboardList className="mr-2 h-4 w-4" />Build assessments</Link>
               </Button>
             </div>
             <p className="mt-4 text-xs leading-relaxed text-slate-500">
@@ -96,24 +90,25 @@ export function ApolloDashboard() {
         <Panel title="Partner universities">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             {universities.data?.items?.map((u: { id: string; name: string; domain: string; isActive: boolean }) => (
-              <div
+              <Link
                 key={u.id}
+                to={`/apollo/universities/${u.id}`}
                 data-animate-card
-                className="group rounded-xl border border-slate-100 bg-gradient-to-br from-white to-slate-50 p-5 transition hover:border-indigo-200 hover:shadow-md"
+                className="group block rounded-xl border border-slate-100 bg-gradient-to-br from-white to-slate-50 p-5 transition hover:border-[#2081A1]/40 hover:shadow-md"
               >
                 <div className="flex items-start gap-3">
-                  <div className="rounded-lg bg-indigo-100 p-2 text-indigo-700">
+                  <div className="rounded-lg bg-indigo-100 p-2 text-indigo-700 transition group-hover:bg-[#2081A1]/10 group-hover:text-[#2081A1]">
                     <Building2 className="h-5 w-5" />
                   </div>
-                  <div>
-                    <p className="font-semibold text-slate-900">{u.name}</p>
+                  <div className="flex-1">
+                    <p className="font-semibold text-slate-900 group-hover:text-[#2081A1]">{u.name}</p>
                     <p className="text-sm text-slate-500">{u.domain}</p>
                     <span className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs ${u.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100'}`}>
                       {u.isActive ? 'Active' : 'Inactive'}
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </Panel>

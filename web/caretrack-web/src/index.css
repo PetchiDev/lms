@@ -1,21 +1,46 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #0f766e;
-  --color-primary-foreground: #ffffff;
+  --color-primary: #2d5f5a;
+  --color-primary-light: #3d7a70;
+  --color-apollo: #2081A1;
+  --color-cream: #f7f8f2;
+  --color-cream-dark: #eef0e8;
+  --color-sidebar: #141a21;
   --color-muted: #f1f5f9;
   --color-muted-foreground: #64748b;
   --color-border: #e2e8f0;
   --color-destructive: #dc2626;
-  --radius: 0.5rem;
+  --radius: 0.75rem;
+}
+
+html {
+  background-color: var(--color-cream);
+  overscroll-behavior: none;
 }
 
 body {
-  @apply bg-slate-50 text-slate-900 antialiased;
+  @apply text-slate-900 antialiased;
   margin: 0;
   min-height: 100vh;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background-color: var(--color-cream);
+  overscroll-behavior: none;
+}
+
+.font-display {
+  font-family: 'Playfair Display', Georgia, serif;
 }
 
 #root {
   min-height: 100vh;
+}
+
+/* Smooth scrollbar for student portal */
+.student-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.student-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
 }

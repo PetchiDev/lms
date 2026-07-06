@@ -9,6 +9,7 @@ public interface IContentService
     Task<LessonResponse> GetLessonAsync(Guid id, CancellationToken cancellationToken = default);
     Task<LessonResponse> UpdateLessonAsync(Guid id, UpdateLessonRequest request, CancellationToken cancellationToken = default);
     Task<LessonAssetResponse> UploadAssetAsync(Guid lessonId, Stream fileStream, string fileName, string contentType, CancellationToken cancellationToken = default);
+    Task DeleteAssetAsync(Guid lessonId, Guid assetId, CancellationToken cancellationToken = default);
     Task<LessonResponse> UpdateStatusAsync(Guid id, UpdateLessonStatusRequest request, CancellationToken cancellationToken = default);
     Task PublishAsync(Guid id, PublishLessonRequest request, CancellationToken cancellationToken = default);
     Task ApproveReviewAsync(Guid id, CancellationToken cancellationToken = default);

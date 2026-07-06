@@ -38,7 +38,7 @@ export function ProgressRing({ value, size = 120, stroke = 10, label, sublabel, 
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
-          className="text-teal-500 transition-all"
+          className="text-[#2081A1] transition-all"
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">

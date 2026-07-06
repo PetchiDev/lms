@@ -116,6 +116,20 @@ public class ContentService : IContentService
         return new LessonAssetResponse(asset.Id, asset.AssetType.ToString(), asset.FileName, asset.BlobUrl, asset.ContentType, asset.FileSizeBytes);
     }
 
+    public async Task DeleteAssetAsync(Guid lessonId, Guid assetId, CancellationToken cancellationToken = default)
+    {
+        if (!_tenant.IsApolloUser)
+            throw new ForbiddenException("Only Apollo users can delete assets.");
+
+        var asset = await _db.LessonAssets
+            .FirstOrDefaultAsync(a => a.Id == assetId && a.LessonId == lessonId, cancellationToken)
+            ?? throw new NotFoundException("Asset not found.");
+
+        await _blobStorage.DeleteAsync(asset.BlobUrl, cancellationToken);
+        _db.LessonAssets.Remove(asset);
+        await _db.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task<LessonResponse> UpdateStatusAsync(Guid id, UpdateLessonStatusRequest request, CancellationToken cancellationToken = default)
     {
         if (!_tenant.IsApolloUser)
@@ -142,8 +156,17 @@ public class ContentService : IContentService
         var lesson = await _db.Lessons.FindAsync([id], cancellationToken)
             ?? throw new NotFoundException("Lesson not found.");
 
-        if (lesson.Status != ContentStatus.PendingReview && lesson.Status != ContentStatus.Published)
+        var canPublish = lesson.Status == ContentStatus.PendingReview
+            || lesson.Status == ContentStatus.Published
+            || (_tenant.Role == UserRole.ApolloAdmin && lesson.Status == ContentStatus.Draft);
+
+        if (!canPublish)
             throw new ConflictException("Lesson must be approved before publishing.");
+
+        var programmeId = await _db.Lessons.AsNoTracking()
+            .Where(l => l.Id == id)
+            .Select(l => l.Module.Semester.ProgrammeYear.ProgrammeId)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var existing = await _db.ContentPublications.Where(p => p.LessonId == id).ToListAsync(cancellationToken);
         _db.ContentPublications.RemoveRange(existing);
@@ -167,11 +190,52 @@ public class ContentService : IContentService
                     UniversityId = universityId,
                     PublishedByUserId = _tenant.UserId
                 });
+
+                if (programmeId != Guid.Empty)
+                {
+                    var linked = await _db.UniversityProgrammes.AnyAsync(
+                        up => up.UniversityId == universityId && up.ProgrammeId == programmeId,
+                        cancellationToken);
+                    if (!linked)
+                    {
+                        _db.UniversityProgrammes.Add(new UniversityProgramme
+                        {
+                            UniversityId = universityId,
+                            ProgrammeId = programmeId
+                        });
+                    }
+                }
             }
         }
 
         lesson.Status = ContentStatus.Published;
         lesson.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        if (programmeId != Guid.Empty && request.UniversityIds is { Count: > 0 })
+        {
+            foreach (var universityId in request.UniversityIds)
+                await EnsureDefaultCohortAsync(universityId, programmeId, cancellationToken);
+        }
+    }
+
+    private async Task EnsureDefaultCohortAsync(Guid universityId, Guid programmeId, CancellationToken cancellationToken)
+    {
+        var hasCohort = await _db.Cohorts.IgnoreQueryFilters()
+            .AnyAsync(c => c.UniversityId == universityId && c.ProgrammeId == programmeId, cancellationToken);
+
+        if (hasCohort) return;
+
+        var year = DateTime.UtcNow.Year;
+        _db.Cohorts.Add(new Cohort
+        {
+            UniversityId = universityId,
+            ProgrammeId = programmeId,
+            Name = $"{year} Intake",
+            IntakeYear = year,
+            CurrentYear = 1,
+            CurrentSemester = 1
+        });
         await _db.SaveChangesAsync(cancellationToken);
     }
 
@@ -183,10 +247,13 @@ public class ContentService : IContentService
         var lesson = await _db.Lessons.FindAsync([id], cancellationToken)
             ?? throw new NotFoundException("Lesson not found.");
 
-        if (lesson.Status != ContentStatus.PendingReview)
-            throw new ConflictException("Lesson is not pending review.");
+        if (lesson.Status == ContentStatus.Published)
+            throw new ConflictException("Lesson is already published.");
 
-        lesson.Status = ContentStatus.PendingReview; // Ready for publish step
+        if (lesson.Status != ContentStatus.Draft && lesson.Status != ContentStatus.PendingReview)
+            throw new ConflictException("Lesson cannot be approved in its current state.");
+
+        lesson.Status = ContentStatus.PendingReview;
         lesson.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync(cancellationToken);
     }

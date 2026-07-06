@@ -20,7 +20,7 @@ public class ReportingService : IReportingService
         _tenant = tenant;
     }
 
-    public async Task<CohortReportResponse> GetUniversityStudentReportAsync(Guid? cohortId, CancellationToken cancellationToken = default)
+    public async Task<CohortReportResponse> GetUniversityStudentReportAsync(Guid? cohortId, Guid? universityId, CancellationToken cancellationToken = default)
     {
         if (_tenant.Role != UserRole.UniversityAdmin && !_tenant.IsApolloUser)
             throw new ForbiddenException("Not authorized.");
@@ -30,6 +30,8 @@ public class ReportingService : IReportingService
 
         if (!_tenant.IsApolloUser && _tenant.UniversityId.HasValue)
             query = query.Where(e => e.UniversityId == _tenant.UniversityId);
+        else if (_tenant.IsApolloUser && universityId.HasValue)
+            query = query.Where(e => e.UniversityId == universityId);
 
         if (cohortId.HasValue)
             query = query.Where(e => e.CohortId == cohortId);
@@ -115,7 +117,7 @@ public class ReportingService : IReportingService
 
     public async Task<byte[]> ExportReportAsync(ExportReportRequest request, CancellationToken cancellationToken = default)
     {
-        var report = await GetUniversityStudentReportAsync(request.CohortId, cancellationToken);
+        var report = await GetUniversityStudentReportAsync(request.CohortId, null, cancellationToken);
 
         if (request.Format.Equals("pdf", StringComparison.OrdinalIgnoreCase))
         {

@@ -50,6 +50,14 @@ public class ContentController : ControllerBase
         return Created(string.Empty, result);
     }
 
+    [HttpDelete("lessons/{lessonId:guid}/assets/{assetId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> DeleteAsset(Guid lessonId, Guid assetId, CancellationToken cancellationToken)
+    {
+        await _service.DeleteAssetAsync(lessonId, assetId, cancellationToken);
+        return NoContent();
+    }
+
     [HttpPatch("lessons/{id:guid}/status")]
     [ProducesResponseType(typeof(LessonResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<LessonResponse>> UpdateStatus(Guid id, [FromBody] UpdateLessonStatusRequest request, CancellationToken cancellationToken)

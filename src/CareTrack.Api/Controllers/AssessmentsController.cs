@@ -17,6 +17,27 @@ public class AssessmentsController : ControllerBase
 
     public AssessmentsController(IAssessmentService service) => _service = service;
 
+    [HttpGet("programmes/{programmeId:guid}/overview")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.ApolloFaculty))]
+    [ProducesResponseType(typeof(ProgrammeAssessmentOverviewResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ProgrammeAssessmentOverviewResponse>> GetProgrammeOverview(Guid programmeId, CancellationToken cancellationToken)
+        => Ok(await _service.GetProgrammeOverviewAsync(programmeId, cancellationToken));
+
+    [HttpGet("modules/{moduleId:guid}")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.ApolloFaculty))]
+    [ProducesResponseType(typeof(AdminQuizDetailResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AdminQuizDetailResponse>> GetModuleQuiz(Guid moduleId, CancellationToken cancellationToken)
+        => Ok(await _service.GetAdminQuizAsync(moduleId, cancellationToken));
+
+    [HttpPut("modules/{moduleId:guid}")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.ApolloFaculty))]
+    [ProducesResponseType(typeof(AdminQuizDetailResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<AdminQuizDetailResponse>> UpsertModuleQuiz(
+        Guid moduleId,
+        [FromBody] UpsertQuizRequest request,
+        CancellationToken cancellationToken)
+        => Ok(await _service.UpsertQuizAsync(moduleId, request, cancellationToken));
+
     [HttpPost("offline-results")]
     [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.ApolloFaculty) + "," + nameof(UserRole.UniversityAdmin))]
     [ProducesResponseType(StatusCodes.Status204NoContent)]

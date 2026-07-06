@@ -17,12 +17,18 @@ public class StudentsController : ControllerBase
     private readonly ILearningService _learningService;
     private readonly IAssessmentService _assessmentService;
     private readonly IClinicalService _clinicalService;
+    private readonly ICertificateService _certificateService;
 
-    public StudentsController(ILearningService learningService, IAssessmentService assessmentService, IClinicalService clinicalService)
+    public StudentsController(
+        ILearningService learningService,
+        IAssessmentService assessmentService,
+        IClinicalService clinicalService,
+        ICertificateService certificateService)
     {
         _learningService = learningService;
         _assessmentService = assessmentService;
         _clinicalService = clinicalService;
+        _certificateService = certificateService;
     }
 
     [HttpGet("dashboard")]
@@ -53,6 +59,16 @@ public class StudentsController : ControllerBase
     public async Task<ActionResult<MarkLessonCompleteResponse>> MarkComplete(Guid lessonId, CancellationToken cancellationToken)
         => Ok(await _learningService.MarkCompleteAsync(lessonId, cancellationToken));
 
+    [HttpPost("modules/{moduleId:guid}/complete-all")]
+    [ProducesResponseType(typeof(BulkCompleteResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<BulkCompleteResponse>> MarkModuleComplete(Guid moduleId, CancellationToken cancellationToken)
+        => Ok(await _learningService.MarkModuleLessonsCompleteAsync(moduleId, cancellationToken));
+
+    [HttpPost("curriculum/complete-all")]
+    [ProducesResponseType(typeof(BulkCompleteResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<BulkCompleteResponse>> MarkCurriculumComplete(CancellationToken cancellationToken)
+        => Ok(await _learningService.MarkCurriculumCompleteAsync(cancellationToken));
+
     [HttpGet("modules/{moduleId:guid}/quiz")]
     [ProducesResponseType(typeof(Application.DTOs.Assessment.QuizResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<Application.DTOs.Assessment.QuizResponse>> GetQuiz(Guid moduleId, CancellationToken cancellationToken)
@@ -73,11 +89,16 @@ public class StudentsController : ControllerBase
     public async Task<ActionResult<Application.DTOs.Assessment.SemesterCompletionResponse>> CompleteSemester(CancellationToken cancellationToken)
         => Ok(await _assessmentService.CheckSemesterCompletionAsync(cancellationToken));
 
+    [HttpGet("certificates")]
+    [ProducesResponseType(typeof(IReadOnlyList<Application.DTOs.Certificates.CertificateResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<Application.DTOs.Certificates.CertificateResponse>>> GetCertificates(CancellationToken cancellationToken)
+        => Ok(await _certificateService.GetMyCertificatesAsync(cancellationToken));
+
     [HttpPost("certificate")]
-    [ProducesResponseType(typeof(Application.DTOs.Assessment.CertificateResponse), StatusCodes.Status200OK)]
-    public async Task<ActionResult<Application.DTOs.Assessment.CertificateResponse>> GenerateCertificate(CancellationToken cancellationToken)
+    [ProducesResponseType(typeof(Application.DTOs.Certificates.CertificateResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<Application.DTOs.Certificates.CertificateResponse>> GenerateCertificate(CancellationToken cancellationToken)
     {
-        var result = await _assessmentService.GenerateCertificateAsync(cancellationToken);
+        var result = await _certificateService.GenerateForCurrentStudentAsync(cancellationToken);
         return result is null ? NotFound() : Ok(result);
     }
 

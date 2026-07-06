@@ -38,6 +38,7 @@ public class CareTrackDbContext : IdentityDbContext<ApplicationUser>, ICareTrack
     public DbSet<QuizAnswer> QuizAnswers => Set<QuizAnswer>();
     public DbSet<OfflineAssessmentResult> OfflineAssessmentResults => Set<OfflineAssessmentResult>();
     public DbSet<Certificate> Certificates => Set<Certificate>();
+    public DbSet<CertificateTemplate> CertificateTemplates => Set<CertificateTemplate>();
     public DbSet<TenantIdpConfig> TenantIdpConfigs => Set<TenantIdpConfig>();
     public DbSet<HospitalDepartment> HospitalDepartments => Set<HospitalDepartment>();
     public DbSet<Supervisor> Supervisors => Set<Supervisor>();
@@ -221,6 +222,12 @@ public class CareTrackDbContext : IdentityDbContext<ApplicationUser>, ICareTrack
             e.HasIndex(x => x.CertificateNumber).IsUnique();
             e.HasOne(x => x.Student).WithMany(s => s.Certificates).HasForeignKey(x => x.StudentId);
             e.HasOne(x => x.Programme).WithMany().HasForeignKey(x => x.ProgrammeId);
+        });
+
+        builder.Entity<CertificateTemplate>(e =>
+        {
+            e.Property(x => x.Title).HasMaxLength(200);
+            e.Property(x => x.OrganizationName).HasMaxLength(200);
         });
 
         builder.Entity<HospitalDepartment>(e =>

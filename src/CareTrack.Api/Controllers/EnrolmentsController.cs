@@ -36,8 +36,17 @@ public class EnrolmentsController : ControllerBase
 
     [HttpGet("students")]
     [ProducesResponseType(typeof(PagedResult<StudentEnrolmentResponse>), StatusCodes.Status200OK)]
-    public async Task<ActionResult<PagedResult<StudentEnrolmentResponse>>> GetStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 20, CancellationToken cancellationToken = default)
+    public async Task<ActionResult<PagedResult<StudentEnrolmentResponse>>> GetStudents([FromQuery] int page = 1, [FromQuery] int pageSize = 50, CancellationToken cancellationToken = default)
         => Ok(await _service.GetStudentsAsync(page, pageSize, cancellationToken));
+
+    /// <summary>Assign a student to a cohort (and its programme).</summary>
+    [HttpPatch("students/{studentId:guid}/cohort")]
+    [ProducesResponseType(typeof(StudentEnrolmentResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<StudentEnrolmentResponse>> AssignCohort(
+        Guid studentId,
+        [FromBody] AssignStudentCohortRequest request,
+        CancellationToken cancellationToken)
+        => Ok(await _service.AssignStudentCohortAsync(studentId, request, cancellationToken));
 }
 
 [ApiController]

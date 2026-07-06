@@ -31,6 +31,12 @@ public class ProgrammesController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<ProgrammeResponse>>> GetAll(CancellationToken cancellationToken)
         => Ok(await _service.GetAllAsync(cancellationToken));
 
+    [HttpGet("catalogue")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.ApolloFaculty))]
+    [ProducesResponseType(typeof(ProgrammeCatalogueResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<ProgrammeCatalogueResponse>> GetCatalogue(CancellationToken cancellationToken)
+        => Ok(await _service.GetCatalogueAsync(cancellationToken));
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ProgrammeStructureResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<ProgrammeStructureResponse>> GetStructure(Guid id, CancellationToken cancellationToken)

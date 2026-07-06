@@ -20,8 +20,11 @@ public class ReportsController : ControllerBase
     [HttpGet("university/students")]
     [Authorize(Roles = nameof(UserRole.UniversityAdmin) + "," + nameof(UserRole.ApolloAdmin))]
     [ProducesResponseType(typeof(CohortReportResponse), StatusCodes.Status200OK)]
-    public async Task<ActionResult<CohortReportResponse>> GetUniversityStudents([FromQuery] Guid? cohortId, CancellationToken cancellationToken)
-        => Ok(await _service.GetUniversityStudentReportAsync(cohortId, cancellationToken));
+    public async Task<ActionResult<CohortReportResponse>> GetUniversityStudents(
+        [FromQuery] Guid? cohortId,
+        [FromQuery] Guid? universityId,
+        CancellationToken cancellationToken)
+        => Ok(await _service.GetUniversityStudentReportAsync(cohortId, universityId, cancellationToken));
 
     [HttpGet("university/export")]
     [Authorize(Roles = nameof(UserRole.UniversityAdmin) + "," + nameof(UserRole.ApolloAdmin))]

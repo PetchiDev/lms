@@ -193,6 +193,86 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.ToTable("Certificates");
                 });
 
+            modelBuilder.Entity("CareTrack.Domain.Entities.CertificateTemplate", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AccentColor")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("AwardedToLabel")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("BodyText")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DatePrefix")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FooterLocation")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LeftSignatoryTitle")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LeftSignatureImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Location")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LogoUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("OrganizationName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PrimaryColor")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RightSignatoryTitle")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RightSignatureImageUrl")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Tagline")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("WebsiteUrl")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CertificateTemplates");
+                });
+
             modelBuilder.Entity("CareTrack.Domain.Entities.Cohort", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1539,6 +1619,12 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("CurrentSemester")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CurrentYear")
+                        .HasColumnType("integer");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");

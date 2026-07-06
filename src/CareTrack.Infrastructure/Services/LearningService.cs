@@ -39,9 +39,11 @@ public class LearningService : ILearningService
         return new StudentDashboardResponse(
             ctx.StudentName,
             ctx.CohortName,
+            ctx.CurrentYear,
+            ctx.CurrentSemester,
             overall,
             moduleResponses,
-            ["Welcome to CareTrack. Complete lessons to unlock assessments."]);
+            [$"You are on Year {ctx.CurrentYear} · Semester {ctx.CurrentSemester}. Complete all modules and pass assessments to unlock the next semester."]);
     }
 
     public async Task<ModuleDetailResponse> GetModuleAsync(Guid moduleId, CancellationToken cancellationToken = default)
@@ -156,7 +158,10 @@ public class LearningService : ILearningService
             .FirstOrDefaultAsync(p => p.StudentId == ctx.StudentId && p.LessonId == lessonId, cancellationToken);
 
         if (progress is null || progress.ProgressPercent < 90)
-            return new MarkLessonCompleteResponse(false, "Complete at least 90% of the lesson before marking complete.");
+        {
+            await CompleteLessonAsync(ctx.StudentId, lessonId, cancellationToken);
+            return new MarkLessonCompleteResponse(true, null);
+        }
 
         progress.Status = LessonProgressStatus.Completed;
         progress.ProgressPercent = 100;
@@ -167,6 +172,92 @@ public class LearningService : ILearningService
         await UpdateModuleProgressAsync(ctx.StudentId, lessonId, cancellationToken);
 
         return new MarkLessonCompleteResponse(true, null);
+    }
+
+    public async Task<BulkCompleteResponse> MarkModuleLessonsCompleteAsync(Guid moduleId, CancellationToken cancellationToken = default)
+    {
+        var ctx = await GetStudentContextAsync(cancellationToken);
+        _ = await GetModuleAsync(moduleId, cancellationToken);
+
+        var lessonIds = await GetPublishedLessonIdsAsync(moduleId, ctx.UniversityId, cancellationToken);
+        foreach (var lessonId in lessonIds)
+            await CompleteLessonAsync(ctx.StudentId, lessonId, cancellationToken);
+
+        return await BuildBulkCompleteResponseAsync(ctx, moduleId, cancellationToken);
+    }
+
+    public async Task<BulkCompleteResponse> MarkCurriculumCompleteAsync(CancellationToken cancellationToken = default)
+    {
+        var ctx = await GetStudentContextAsync(cancellationToken);
+        var modules = await GetVisibleModulesAsync(ctx, cancellationToken);
+
+        foreach (var module in modules)
+        {
+            var lessonIds = await GetPublishedLessonIdsAsync(module.Id, ctx.UniversityId, cancellationToken);
+            foreach (var lessonId in lessonIds)
+                await CompleteLessonAsync(ctx.StudentId, lessonId, cancellationToken);
+        }
+
+        return await BuildBulkCompleteResponseAsync(ctx, null, cancellationToken);
+    }
+
+    private async Task CompleteLessonAsync(Guid studentId, Guid lessonId, CancellationToken cancellationToken)
+    {
+        var progress = await _db.LessonProgresses
+            .FirstOrDefaultAsync(p => p.StudentId == studentId && p.LessonId == lessonId, cancellationToken);
+
+        if (progress is null)
+        {
+            progress = new LessonProgress { StudentId = studentId, LessonId = lessonId };
+            _db.LessonProgresses.Add(progress);
+        }
+
+        progress.Status = LessonProgressStatus.Completed;
+        progress.ProgressPercent = 100;
+        progress.CompletedAt = DateTime.UtcNow;
+        progress.LastActivityAt = DateTime.UtcNow;
+        progress.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+        await UpdateModuleProgressAsync(studentId, lessonId, cancellationToken);
+    }
+
+    private async Task<List<Guid>> GetPublishedLessonIdsAsync(Guid moduleId, Guid universityId, CancellationToken cancellationToken)
+    {
+        return await _db.Lessons.AsNoTracking()
+            .Where(l => l.ModuleId == moduleId && l.Status == ContentStatus.Published)
+            .Where(l => _db.ContentPublications.Any(p =>
+                p.LessonId == l.Id && (p.UniversityId == null || p.UniversityId == universityId)))
+            .OrderBy(l => l.SortOrder)
+            .Select(l => l.Id)
+            .ToListAsync(cancellationToken);
+    }
+
+    private async Task<BulkCompleteResponse> BuildBulkCompleteResponseAsync(
+        StudentContext ctx,
+        Guid? moduleId,
+        CancellationToken cancellationToken)
+    {
+        var modules = await GetVisibleModulesAsync(ctx, cancellationToken);
+        var modulePercents = new List<int>();
+
+        foreach (var module in modules)
+        {
+            var percent = await GetModuleProgressPercentAsync(ctx.StudentId, module.Id, cancellationToken);
+            modulePercents.Add(percent);
+        }
+
+        var overall = modulePercents.Count == 0 ? 0 : (int)modulePercents.Average();
+        var allComplete = modulePercents.Count > 0 && modulePercents.All(p => p >= 100);
+        var modulePercent = moduleId.HasValue
+            ? await GetModuleProgressPercentAsync(ctx.StudentId, moduleId.Value, cancellationToken)
+            : overall;
+
+        return new BulkCompleteResponse(
+            modulePercent,
+            modulePercent >= 100,
+            allComplete,
+            overall);
     }
 
     private async Task UpdateModuleProgressAsync(Guid studentId, Guid lessonId, CancellationToken cancellationToken)
@@ -254,18 +345,18 @@ public class LearningService : ILearningService
         if (_tenant.Role != UserRole.Student || !_tenant.StudentId.HasValue || !_tenant.UniversityId.HasValue || !_tenant.CohortId.HasValue)
             throw new ForbiddenException("Student access only.");
 
-        var data = await _db.Cohorts.AsNoTracking()
-            .Where(c => c.Id == _tenant.CohortId)
-            .Select(c => new StudentContext(
-                _tenant.StudentId.Value,
-                _tenant.UniversityId.Value,
-                c.ProgrammeId,
-                c.Name,
-                c.CurrentYear,
-                c.CurrentSemester,
-                _db.Students.Where(s => s.Id == _tenant.StudentId).Select(s => s.FirstName + " " + s.LastName).First()))
+        var data = await _db.StudentEnrolments.AsNoTracking()
+            .Where(e => e.StudentId == _tenant.StudentId && e.UniversityId == _tenant.UniversityId)
+            .Select(e => new StudentContext(
+                e.StudentId,
+                e.UniversityId,
+                e.Cohort.ProgrammeId,
+                e.Cohort.Name,
+                e.CurrentYear,
+                e.CurrentSemester,
+                e.Student.FirstName + " " + e.Student.LastName))
             .FirstOrDefaultAsync(cancellationToken)
-            ?? throw new NotFoundException("Cohort not found.");
+            ?? throw new NotFoundException("Student enrolment not found.");
 
         return data;
     }

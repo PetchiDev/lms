@@ -4,6 +4,8 @@ public record CreateUniversityRequest(string Name, string Domain, Guid? Programm
 
 public record UpdateUniversityRequest(string Name, string Domain, bool IsActive);
 
+public record SetUniversityProgrammesRequest(IReadOnlyList<Guid> ProgrammeIds);
+
 public record UniversityResponse(
     Guid Id,
     string Name,
@@ -16,4 +18,17 @@ public record CreateUniversityAdminRequest(
     string Email,
     string FirstName,
     string LastName,
+    Guid UniversityId);
+
+public record CreateUniversityAdminDirectRequest(
+    string Email,
+    string FirstName,
+    string LastName,
+    Guid UniversityId,
+    string Password);
+
+public record UniversityAdminResponse(
+    string UserId,
+    string Email,
+    string FullName,
     Guid UniversityId);
