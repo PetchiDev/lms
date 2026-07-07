@@ -28,10 +28,18 @@ public class EnrolmentsController : ControllerBase
 
     [HttpPost("students/import")]
     [ProducesResponseType(typeof(CsvImportResult), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     public async Task<ActionResult<CsvImportResult>> ImportStudents(IFormFile file, [FromQuery] Guid cohortId, CancellationToken cancellationToken)
     {
+        if (file.Length == 0)
+            return BadRequest("File is required.");
+
+        var extension = Path.GetExtension(file.FileName).ToLowerInvariant();
+        if (extension is not ".csv" and not ".xlsx")
+            return BadRequest("Only CSV and XLSX files are supported.");
+
         await using var stream = file.OpenReadStream();
-        return Ok(await _service.ImportStudentsAsync(stream, cohortId, cancellationToken));
+        return Ok(await _service.ImportStudentsAsync(stream, file.FileName, cohortId, cancellationToken));
     }
 
     [HttpGet("students")]
@@ -47,6 +55,15 @@ public class EnrolmentsController : ControllerBase
         [FromBody] AssignStudentCohortRequest request,
         CancellationToken cancellationToken)
         => Ok(await _service.AssignStudentCohortAsync(studentId, request, cancellationToken));
+
+    /// <summary>Updates a student's profile, cohort, status, or credentials.</summary>
+    [HttpPut("students/{studentId:guid}")]
+    [ProducesResponseType(typeof(StudentEnrolmentResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<StudentEnrolmentResponse>> UpdateStudent(
+        Guid studentId,
+        [FromBody] UpdateStudentRequest request,
+        CancellationToken cancellationToken)
+        => Ok(await _service.UpdateStudentAsync(studentId, request, cancellationToken));
 }
 
 [ApiController]

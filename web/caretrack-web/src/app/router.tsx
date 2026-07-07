@@ -1,10 +1,12 @@
 import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClient } from '@/lib/query-client'
+import { HashUrlFix } from '@/app/HashUrlFix'
 import { ProtectedRoute } from '@/app/ProtectedRoute'
 import { LoginPage } from '@/features/auth/LoginPage'
 import { ApolloDashboard } from '@/features/apollo/ApolloDashboard'
 import { ProgrammeCataloguePage } from '@/features/apollo/ProgrammeCataloguePage'
+import { ProgrammeModulesPage } from '@/features/apollo/ProgrammeModulesPage'
 import { AssessmentBuilderPage } from '@/features/apollo/AssessmentBuilderPage'
 import { CertificateTemplatePage } from '@/features/apollo/CertificateTemplatePage'
 import { ContentLibraryPage } from '@/features/apollo/ContentLibraryPage'
@@ -38,6 +40,7 @@ export function AppRouter() {
   return (
     <QueryClientProvider client={queryClient}>
       <HashRouter>
+        <HashUrlFix />
         <Routes>
           <Route path="/" element={<RootRedirect />} />
           <Route path="/login" element={<LoginPage />} />
@@ -47,6 +50,7 @@ export function AppRouter() {
             <Route path="/apollo" element={<Navigate to="/console" replace />} />
             <Route path="/apollo/content" element={<ContentLibraryPage />} />
             <Route path="/apollo/catalogue" element={<ProgrammeCataloguePage />} />
+            <Route path="/apollo/programmes" element={<ProgrammeModulesPage />} />
             <Route path="/apollo/assessments" element={<AssessmentBuilderPage />} />
             <Route path="/apollo/reports" element={<ApolloReportsPage />} />
             <Route path="/apollo/universities/:universityId" element={<UniversityDetailPage />} />

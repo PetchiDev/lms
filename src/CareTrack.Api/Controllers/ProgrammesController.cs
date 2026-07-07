@@ -69,4 +69,14 @@ public class ProgrammesController : ControllerBase
         await _service.DeleteAsync(id, cancellationToken);
         return NoContent();
     }
+
+    /// <summary>Deletes a module and its lessons, assets, and assessments.</summary>
+    [HttpDelete("modules/{moduleId:guid}")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> DeleteModule(Guid moduleId, CancellationToken cancellationToken)
+    {
+        await _service.DeleteModuleAsync(moduleId, cancellationToken);
+        return NoContent();
+    }
 }

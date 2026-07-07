@@ -22,6 +22,14 @@ public record StudentEnrolmentResponse(
 
 public record AssignStudentCohortRequest(Guid CohortId);
 
+public record UpdateStudentRequest(
+    string FirstName,
+    string LastName,
+    string? Email,
+    string? Password,
+    Guid? CohortId,
+    string? Status);
+
 public record CreateCohortRequest(
     Guid UniversityId,
     Guid ProgrammeId,

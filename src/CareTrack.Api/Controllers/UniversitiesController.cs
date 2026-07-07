@@ -63,6 +63,13 @@ public class UniversitiesController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Deletes all partner universities (skips those with blocking dependencies).</summary>
+    [HttpDelete]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
+    [ProducesResponseType(typeof(DeleteAllUniversitiesResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<DeleteAllUniversitiesResponse>> DeleteAll(CancellationToken cancellationToken)
+        => Ok(await _service.DeleteAllAsync(cancellationToken));
+
     /// <summary>Uploads the partner university logo (stored in Azure Blob).</summary>
     [HttpPost("{id:guid}/logo")]
     [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
@@ -122,5 +129,27 @@ public class UsersController : ControllerBase
     {
         var result = await _service.CreateUniversityAdminAsync(request, cancellationToken);
         return Created(string.Empty, result);
+    }
+
+    /// <summary>Lists college admins for a partner university.</summary>
+    [HttpGet("university-admins")]
+    [ProducesResponseType(typeof(IReadOnlyList<UniversityAdminResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<UniversityAdminResponse>>> GetUniversityAdmins(
+        [FromQuery] Guid universityId,
+        CancellationToken cancellationToken)
+        => Ok(await _service.GetUniversityAdminsAsync(universityId, cancellationToken));
+
+    /// <summary>Updates a college admin's credentials.</summary>
+    [HttpPut("university-admins/{userId}")]
+    [ProducesResponseType(typeof(UniversityAdminResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<UniversityAdminResponse>> UpdateUniversityAdmin(
+        string userId,
+        [FromBody] UpdateUniversityAdminRequest request,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(userId, request.UserId, StringComparison.Ordinal))
+            return BadRequest("User id mismatch.");
+
+        return Ok(await _service.UpdateUniversityAdminAsync(request, cancellationToken));
     }
 }

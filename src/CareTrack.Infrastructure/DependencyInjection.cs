@@ -42,6 +42,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Interfaces.IBlobStorageService, Services.BlobStorageService>();
         services.AddScoped<Application.Interfaces.IAuthService, Services.AuthService>();
         services.AddScoped<Application.Interfaces.IUniversityService, Services.UniversityService>();
+        services.AddScoped<Application.Interfaces.IPlatformService, Services.PlatformService>();
         services.AddScoped<Application.Interfaces.IProgrammeService, Services.ProgrammeService>();
         services.AddScoped<Application.Interfaces.IContentService, Services.ContentService>();
         services.AddScoped<Application.Interfaces.IEnrolmentService, Services.EnrolmentService>();

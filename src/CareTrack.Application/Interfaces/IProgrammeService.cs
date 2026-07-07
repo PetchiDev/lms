@@ -12,4 +12,5 @@ public interface IProgrammeService
     Task<IReadOnlyList<ProgrammeResponse>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<ProgrammeCatalogueResponse> GetCatalogueAsync(CancellationToken cancellationToken = default);
     Task DeleteAsync(Guid programmeId, CancellationToken cancellationToken = default);
+    Task DeleteModuleAsync(Guid moduleId, CancellationToken cancellationToken = default);
 }

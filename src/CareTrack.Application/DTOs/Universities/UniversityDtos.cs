@@ -46,3 +46,13 @@ public record UniversityAdminResponse(
     string Email,
     string FullName,
     Guid UniversityId);
+
+public record UpdateUniversityAdminRequest(
+    string UserId,
+    Guid UniversityId,
+    string? Email,
+    string? Password,
+    string? FirstName,
+    string? LastName);
+
+public record DeleteAllUniversitiesResponse(int Deleted, int Failed, IReadOnlyList<string> Errors);

@@ -339,4 +339,62 @@ public class ProgrammeService : IProgrammeService
             throw;
         }
     }
+
+    public async Task DeleteModuleAsync(Guid moduleId, CancellationToken cancellationToken = default)
+    {
+        if (_tenant.Role != UserRole.ApolloAdmin)
+            throw new ForbiddenException("Only Apollo admin can delete modules.");
+
+        if (!await _db.Modules.AsNoTracking().AnyAsync(m => m.Id == moduleId, cancellationToken))
+            throw new NotFoundException("Module not found.");
+
+        await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var lessonAssets = await _db.LessonAssets.AsNoTracking()
+                .Where(a => a.Lesson.ModuleId == moduleId)
+                .Select(a => a.BlobUrl)
+                .ToListAsync(cancellationToken);
+
+            foreach (var blobUrl in lessonAssets)
+                await _blobStorage.DeleteAsync(blobUrl, cancellationToken);
+
+            var lessonIds = await _db.Lessons.AsNoTracking()
+                .Where(l => l.ModuleId == moduleId)
+                .Select(l => l.Id)
+                .ToListAsync(cancellationToken);
+
+            var quizIds = await _db.Quizzes.AsNoTracking()
+                .Where(q => q.ModuleId == moduleId)
+                .Select(q => q.Id)
+                .ToListAsync(cancellationToken);
+
+            var attemptIds = await _db.QuizAttempts.AsNoTracking()
+                .Where(a => quizIds.Contains(a.QuizId))
+                .Select(a => a.Id)
+                .ToListAsync(cancellationToken);
+
+            _db.QuizAnswers.RemoveRange(_db.QuizAnswers.Where(a => attemptIds.Contains(a.AttemptId)));
+            _db.QuizAttempts.RemoveRange(_db.QuizAttempts.Where(a => quizIds.Contains(a.QuizId)));
+            _db.QuizOptions.RemoveRange(_db.QuizOptions.Where(o => quizIds.Contains(o.Question.QuizId)));
+            _db.QuizQuestions.RemoveRange(_db.QuizQuestions.Where(q => quizIds.Contains(q.QuizId)));
+            _db.Quizzes.RemoveRange(_db.Quizzes.Where(q => quizIds.Contains(q.Id)));
+
+            _db.LessonProgresses.RemoveRange(_db.LessonProgresses.Where(p => lessonIds.Contains(p.LessonId)));
+            _db.ModuleProgresses.RemoveRange(_db.ModuleProgresses.Where(p => p.ModuleId == moduleId));
+
+            _db.ContentPublications.RemoveRange(_db.ContentPublications.Where(p => lessonIds.Contains(p.LessonId)));
+            _db.LessonAssets.RemoveRange(_db.LessonAssets.Where(a => lessonIds.Contains(a.LessonId)));
+            _db.Lessons.RemoveRange(_db.Lessons.Where(l => lessonIds.Contains(l.Id)));
+            _db.Modules.RemoveRange(_db.Modules.Where(m => m.Id == moduleId));
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
+    }
 }

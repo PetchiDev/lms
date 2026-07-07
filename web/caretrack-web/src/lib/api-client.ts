@@ -23,7 +23,7 @@ api.interceptors.response.use(
       authStore.clear()
       clearStudentCache()
       if (!window.location.hash.startsWith('#/login')) {
-        window.location.hash = '#/login'
+        window.location.replace('/#/login')
       }
     }
     return Promise.reject(error)

@@ -1,4 +1,4 @@
-import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { Bell, ChevronDown, LogOut, Menu, X, type LucideIcon } from 'lucide-react'
 import { useState } from 'react'
 import { authStore } from '@/lib/auth-store'
@@ -57,13 +57,12 @@ export function DashboardShell({
   accent = 'apollo',
 }: DashboardShellProps) {
   const location = useLocation()
-  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
   function handleLogout() {
     authStore.clear()
-    navigate('/login')
+    window.location.replace('/#/login')
   }
 
   const sidebarContent = (

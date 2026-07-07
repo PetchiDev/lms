@@ -9,7 +9,6 @@ import {
   Mail,
   Users,
 } from 'lucide-react'
-import gsap from 'gsap'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { api, getErrorMessage } from '@/lib/api-client'
 import { notify } from '@/lib/notify'
@@ -49,27 +48,23 @@ export function UniversityDetailPage() {
   const [adminLastName, setAdminLastName] = useState('')
   const [adminMessage, setAdminMessage] = useState<string | null>(null)
   const [createdAdmin, setCreatedAdmin] = useState<{ email: string; password: string } | null>(null)
-  const [logoMessage, setLogoMessage] = useState<string | null>(null)
-  const [emailSubject, setEmailSubject] = useState('')
-  const [emailBody, setEmailBody] = useState('')
-  const [emailFromName, setEmailFromName] = useState('')
-  const [emailFromEmail, setEmailFromEmail] = useState('')
-  const [emailMessage, setEmailMessage] = useState<string | null>(null)
+  const [editAdminId, setEditAdminId] = useState<string | null>(null)
+  const [editEmail, setEditEmail] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [editFirstName, setEditFirstName] = useState('')
+  const [editLastName, setEditLastName] = useState('')
 
-  const emailTemplate = useQuery({
-    queryKey: ['university-email-template', universityId],
-    queryFn: async () => (await api.get(`/universities/${universityId}/email-template`)).data,
+  const universityAdmins = useQuery({
+    queryKey: ['university-admins', universityId],
+    queryFn: async () =>
+      (await api.get('/users/university-admins', { params: { universityId } })).data as {
+        userId: string
+        email: string
+        fullName: string
+        universityId: string
+      }[],
     enabled: !!universityId,
   })
-
-  useEffect(() => {
-    if (emailTemplate.data) {
-      setEmailSubject(emailTemplate.data.emailInviteSubject ?? '')
-      setEmailBody(emailTemplate.data.emailInviteBodyHtml ?? '')
-      setEmailFromName(emailTemplate.data.emailFromName ?? '')
-      setEmailFromEmail(emailTemplate.data.emailFromEmail ?? '')
-    }
-  }, [emailTemplate.data])
 
   const university = useQuery({
     queryKey: ['university', universityId],
@@ -103,47 +98,6 @@ export function UniversityDetailPage() {
     },
   })
 
-  const uploadLogo = useMutation({
-    mutationFn: async (file: File) => {
-      const form = new FormData()
-      form.append('file', file)
-      return api.post(`/universities/${universityId}/logo`, form, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['university', universityId] })
-      setLogoMessage('Logo uploaded successfully.')
-      notify.success('Logo uploaded.')
-    },
-    onError: (err) => {
-      const msg = getErrorMessage(err)
-      setLogoMessage(msg)
-      notify.error(err)
-    },
-  })
-
-  const saveEmailTemplate = useMutation({
-    mutationFn: async () =>
-      api.put(`/universities/${universityId}/email-template`, {
-        emailInviteSubject: emailSubject || null,
-        emailInviteBodyHtml: emailBody || null,
-        emailFromName: emailFromName || null,
-        emailFromEmail: emailFromEmail || null,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['university-email-template', universityId] })
-      queryClient.invalidateQueries({ queryKey: ['university', universityId] })
-      setEmailMessage('Email template saved.')
-      notify.success('Email template saved.')
-    },
-    onError: (err) => {
-      const msg = getErrorMessage(err)
-      setEmailMessage(msg)
-      notify.error(err)
-    },
-  })
-
   const createAdmin = useMutation({
     mutationFn: async () =>
       api.post('/users/university-admins/direct', {
@@ -160,6 +114,7 @@ export function UniversityDetailPage() {
       setAdminPassword('')
       setAdminFirstName('')
       setAdminLastName('')
+      queryClient.invalidateQueries({ queryKey: ['university-admins', universityId] })
       notify.success('College admin created.')
     },
     onError: (err) => {
@@ -169,6 +124,37 @@ export function UniversityDetailPage() {
       notify.error(err)
     },
   })
+
+  const updateAdmin = useMutation({
+    mutationFn: async () =>
+      api.put(`/users/university-admins/${editAdminId}`, {
+        userId: editAdminId,
+        universityId,
+        email: editEmail || null,
+        password: editPassword || null,
+        firstName: editFirstName || null,
+        lastName: editLastName || null,
+      }),
+    onSuccess: () => {
+      notify.success('College admin updated.')
+      setEditAdminId(null)
+      setEditEmail('')
+      setEditPassword('')
+      setEditFirstName('')
+      setEditLastName('')
+      queryClient.invalidateQueries({ queryKey: ['university-admins', universityId] })
+    },
+    onError: (err) => notify.error(err),
+  })
+
+  function startEditAdmin(admin: { userId: string; email: string; fullName: string }) {
+    const [first, ...rest] = admin.fullName.split(' ')
+    setEditAdminId(admin.userId)
+    setEditEmail(admin.email)
+    setEditPassword('')
+    setEditFirstName(first ?? '')
+    setEditLastName(rest.join(' '))
+  }
 
   const comparison = useQuery({
     queryKey: ['apollo-universities'],
@@ -204,15 +190,6 @@ export function UniversityDetailPage() {
     label: s.fullName.split(' ')[0],
     value: s.progressPercent,
   }))
-
-  useEffect(() => {
-    if (!pageRef.current) return
-    gsap.fromTo(
-      pageRef.current.children,
-      { opacity: 0, y: 20 },
-      { opacity: 1, y: 0, duration: 0.5, stagger: 0.08, ease: 'power3.out' },
-    )
-  }, [universityId, report.data])
 
   const navItems = getApolloNavItems(true)
 
@@ -293,7 +270,6 @@ export function UniversityDetailPage() {
               <TabsTrigger value="students">Students ({totalStudents})</TabsTrigger>
               <TabsTrigger value="cohorts">Cohorts ({uniCohorts.length})</TabsTrigger>
               <TabsTrigger value="programmes">Programmes ({linkedProgrammes.length})</TabsTrigger>
-              <TabsTrigger value="branding">Branding & email</TabsTrigger>
               <TabsTrigger value="admin">College admin</TabsTrigger>
             </TabsList>
 
@@ -412,74 +388,70 @@ export function UniversityDetailPage() {
               </div>
             </TabsContent>
 
-            <TabsContent value="branding">
-              <div className="grid gap-8 lg:grid-cols-2">
-                <div>
-                  <h3 className="mb-3 font-semibold text-slate-900">University logo</h3>
-                  <p className="mb-4 text-sm text-slate-600">Logo is stored in Azure Blob and shown in invite emails.</p>
-                  {assetUrl(university.data?.logoUrl) && (
-                    <img
-                      src={assetUrl(university.data?.logoUrl)!}
-                      alt="University logo"
-                      className="mb-4 h-16 object-contain"
-                    />
-                  )}
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0]
-                      if (file) uploadLogo.mutate(file)
-                    }}
-                  />
-                  {logoMessage && (
-                    <p className={`mt-2 text-sm ${logoMessage.includes('success') ? 'text-emerald-600' : 'text-red-600'}`}>
-                      {logoMessage}
-                    </p>
-                  )}
+            <TabsContent value="admin">
+              {(universityAdmins.data ?? []).length > 0 && (
+                <div className="mb-8 space-y-3">
+                  <h3 className="font-semibold text-slate-900">Existing college admins</h3>
+                  {(universityAdmins.data ?? []).map((admin) => (
+                    <div
+                      key={admin.userId}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3"
+                    >
+                      <div>
+                        <p className="font-medium text-slate-900">{admin.fullName}</p>
+                        <p className="text-sm text-slate-500">{admin.email}</p>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => startEditAdmin(admin)}>
+                        Update credentials
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-                <div>
-                  <h3 className="mb-3 font-semibold text-slate-900">Invite email template</h3>
-                  <p className="mb-4 text-sm text-slate-600">
-                    Customize emails for this university. Placeholders: {'{{FullName}}'}, {'{{ActivationUrl}}'}, {'{{UniversityName}}'}, {'{{LogoUrl}}'}
-                  </p>
-                  <div className="space-y-3">
+              )}
+
+              {editAdminId && (
+                <div className="mb-8 rounded-xl border border-[#2081A1]/30 bg-[#2081A1]/5 p-5">
+                  <h3 className="mb-4 font-semibold text-slate-900">Update college admin</h3>
+                  <div className="grid max-w-lg gap-4">
                     <div className="space-y-2">
-                      <Label>From name</Label>
-                      <Input value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} placeholder="SRM University" />
+                      <Label>Email</Label>
+                      <Input value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
                     </div>
                     <div className="space-y-2">
-                      <Label>From email</Label>
-                      <Input value={emailFromEmail} onChange={(e) => setEmailFromEmail(e.target.value)} placeholder="noreply@srm.edu" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Subject</Label>
-                      <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Activate your account" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>HTML body</Label>
-                      <textarea
-                        className="min-h-[160px] w-full rounded-xl border border-slate-200 p-3 text-sm"
-                        value={emailBody}
-                        onChange={(e) => setEmailBody(e.target.value)}
-                        placeholder="<p>Hi {{FullName}}, welcome to {{UniversityName}}...</p>"
+                      <Label>New password (leave blank to keep)</Label>
+                      <Input
+                        type="password"
+                        value={editPassword}
+                        onChange={(e) => setEditPassword(e.target.value)}
+                        placeholder="Min 8 characters"
                       />
                     </div>
-                    <Button className="bg-[#2081A1]" onClick={() => saveEmailTemplate.mutate()} disabled={saveEmailTemplate.isPending}>
-                      <Mail className="mr-2 h-4 w-4" />
-                      Save email template
-                    </Button>
-                    {emailMessage && (
-                      <p className={`text-sm ${emailMessage.includes('saved') ? 'text-emerald-600' : 'text-red-600'}`}>
-                        {emailMessage}
-                      </p>
-                    )}
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label>First name</Label>
+                        <Input value={editFirstName} onChange={(e) => setEditFirstName(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Last name</Label>
+                        <Input value={editLastName} onChange={(e) => setEditLastName(e.target.value)} />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        className="bg-[#2081A1]"
+                        disabled={updateAdmin.isPending}
+                        onClick={() => updateAdmin.mutate()}
+                      >
+                        Save changes
+                      </Button>
+                      <Button variant="outline" onClick={() => setEditAdminId(null)}>
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
                 </div>
-              </div>
-            </TabsContent>
+              )}
 
-            <TabsContent value="admin">
               <p className="mb-4 text-sm text-slate-600">
                 Creating a university only registers the partner — it does not create a login. Add a college admin here with email and password (no invite email).
               </p>

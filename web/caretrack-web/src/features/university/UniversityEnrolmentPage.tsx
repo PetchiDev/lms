@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
-import { Loader2, Upload, UserPlus } from 'lucide-react'
+import { Loader2, UserPlus } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
@@ -8,6 +8,7 @@ import { UniPanel } from '@/components/layout/UniversityShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { FileUpload } from '@/components/ui/file-upload'
 
 interface Programme {
   id: string
@@ -111,20 +112,44 @@ export function UniversityEnrolmentPage() {
     onError: (err) => notify.error(err),
   })
 
-  async function importCsv(file: File) {
-    if (!cohortId) return
-    const form = new FormData()
-    form.append('file', file)
-    try {
-      await api.post(`/enrolments/students/import?cohortId=${cohortId}`, form, {
+  const importStudents = useMutation({
+    mutationFn: async (file: File) => {
+      if (!cohortId) throw new Error('Select a cohort first.')
+      const form = new FormData()
+      form.append('file', file)
+      return (await api.post(`/enrolments/students/import?cohortId=${cohortId}`, form, {
         headers: { 'Content-Type': 'multipart/form-data' },
-      })
+      })).data as {
+        totalRows: number
+        successCount: number
+        failedCount: number
+        errors: string[]
+      }
+    },
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['students'] })
       queryClient.invalidateQueries({ queryKey: ['university-report'] })
-      notify.success('CSV import completed.')
-    } catch (err) {
-      notify.error(err)
+      if (data.failedCount > 0) {
+        notify.info(`Imported ${data.successCount}/${data.totalRows}. ${data.failedCount} row(s) failed.`)
+      } else {
+        notify.success(`Imported ${data.successCount} student(s).`)
+      }
+    },
+    onError: (err) => notify.error(err),
+  })
+
+  function handleImportFile(file: File | null) {
+    if (!file) return
+    const name = file.name.toLowerCase()
+    if (!name.endsWith('.csv') && !name.endsWith('.xlsx')) {
+      notify.error('Only CSV or XLSX files are supported.')
+      return
     }
+    if (!cohortId) {
+      notify.error('Select a cohort before importing.')
+      return
+    }
+    importStudents.mutate(file)
   }
 
   const selectedProgramme = linkedProgrammes.find((p) => p.id === programmeId)
@@ -224,20 +249,26 @@ export function UniversityEnrolmentPage() {
             <UserPlus className="mr-2 h-4 w-4" />
             Create student
           </Button>
-          <Label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm hover:bg-slate-50">
-            <Upload className="h-4 w-4" />
-            CSV import
-            <Input
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={(e) => e.target.files?.[0] && importCsv(e.target.files[0])}
-            />
-          </Label>
         </div>
-        <p className="mt-3 text-xs text-slate-500">
-          CSV columns: Email, FirstName, LastName. Optional Password (defaults to Student@123).
-        </p>
+
+        <div className="mt-8 border-t border-slate-100 pt-6">
+          <Label className="mb-3 block text-base font-semibold text-slate-900">Bulk import (CSV or XLSX)</Label>
+          <FileUpload
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            hint="Columns: Email, FirstName, LastName · optional Password"
+            disabled={!cohortId || importStudents.isPending}
+            onChange={handleImportFile}
+          />
+          {importStudents.isPending && (
+            <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Importing students…
+            </p>
+          )}
+          <p className="mt-3 text-xs text-slate-500">
+            First row must be headers: Email, FirstName, LastName. Password is optional (defaults to Student@123).
+          </p>
+        </div>
       </UniPanel>
     </div>
   )

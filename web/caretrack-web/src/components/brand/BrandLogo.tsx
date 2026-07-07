@@ -1,5 +1,8 @@
+import { useQuery } from '@tanstack/react-query'
 import { cn } from '@/lib/utils'
 import { authStore } from '@/lib/auth-store'
+import { api } from '@/lib/api-client'
+import { assetUrl } from '@/lib/asset-url'
 
 interface BrandLogoProps {
   variant?: 'light' | 'dark'
@@ -16,7 +19,15 @@ const sizes = {
 
 export function BrandLogo({ variant = 'dark', size = 'md', showCareTrack = true, className }: BrandLogoProps) {
   const auth = authStore.get()
-  const src = auth?.universityLogoUrl || '/apollo_logo.png'
+  const platformBranding = useQuery({
+    queryKey: ['platform-branding'],
+    queryFn: async () => (await api.get('/platform/branding')).data as { logoUrl?: string | null },
+    enabled: !auth?.universityLogoUrl,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const platformLogo = assetUrl(platformBranding.data?.logoUrl)
+  const src = auth?.universityLogoUrl || platformLogo || '/apollo_logo.png'
   return (
     <div className={cn('flex items-center gap-3', className)}>
       <img

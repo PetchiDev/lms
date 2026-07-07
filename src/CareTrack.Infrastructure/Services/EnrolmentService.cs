@@ -6,6 +6,7 @@ using CareTrack.Domain.Enums;
 using CareTrack.Domain.Exceptions;
 using CareTrack.Infrastructure.Identity;
 using CareTrack.Infrastructure.Persistence;
+using ClosedXML.Excel;
 using CsvHelper;
 using CsvHelper.Configuration;
 using Microsoft.AspNetCore.Identity;
@@ -98,7 +99,11 @@ public class EnrolmentService : IEnrolmentService
         }
     }
 
-    public async Task<CsvImportResult> ImportStudentsAsync(Stream csvStream, Guid cohortId, CancellationToken cancellationToken = default)
+    public async Task<CsvImportResult> ImportStudentsAsync(
+        Stream fileStream,
+        string fileName,
+        Guid cohortId,
+        CancellationToken cancellationToken = default)
     {
         var cohort = await _db.Cohorts.AsNoTracking()
             .FirstOrDefaultAsync(c => c.Id == cohortId, cancellationToken)
@@ -107,36 +112,132 @@ public class EnrolmentService : IEnrolmentService
         if (!_tenant.IsApolloUser)
             _tenant.EnsureUniversityAccess(cohort.UniversityId);
 
+        var extension = Path.GetExtension(fileName).ToLowerInvariant();
+        var rows = extension switch
+        {
+            ".csv" => await ParseCsvRowsAsync(fileStream, cancellationToken),
+            ".xlsx" => ParseXlsxRows(fileStream),
+            _ => throw new Domain.Exceptions.ValidationException("Only CSV and XLSX files are supported.")
+        };
+
+        if (rows.Count == 0)
+            throw new Domain.Exceptions.ValidationException("No student rows found in the file.");
+
         var errors = new List<string>();
         var success = 0;
         var total = 0;
 
-        using var reader = new StreamReader(csvStream);
-        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture) { HeaderValidated = null, MissingFieldFound = null });
-
-        await foreach (var record in csv.GetRecordsAsync<CsvStudentRow>(cancellationToken))
+        foreach (var record in rows)
         {
             total++;
             try
             {
+                if (string.IsNullOrWhiteSpace(record.Email))
+                    throw new Domain.Exceptions.ValidationException("Email is required.");
+
                 await CreateStudentAsync(
                     new CreateStudentRequest(
-                        record.Email,
-                        record.FirstName,
-                        record.LastName,
+                        record.Email.Trim(),
+                        record.FirstName.Trim(),
+                        record.LastName.Trim(),
                         cohortId,
-                        string.IsNullOrWhiteSpace(record.Password) ? "Student@123" : record.Password),
+                        string.IsNullOrWhiteSpace(record.Password) ? "Student@123" : record.Password.Trim()),
                     cancellationToken);
                 success++;
             }
             catch (Exception ex)
             {
-                errors.Add($"Row {total} ({record.Email}): {ex.Message}");
+                var label = string.IsNullOrWhiteSpace(record.Email) ? $"Row {total}" : record.Email;
+                errors.Add($"Row {total} ({label}): {ex.Message}");
             }
         }
 
         return new CsvImportResult(total, success, total - success, errors);
     }
+
+    private static async Task<List<ImportStudentRow>> ParseCsvRowsAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        using var reader = new StreamReader(stream);
+        using var csv = new CsvReader(reader, new CsvConfiguration(CultureInfo.InvariantCulture)
+        {
+            HeaderValidated = null,
+            MissingFieldFound = null
+        });
+
+        var rows = new List<ImportStudentRow>();
+        await foreach (var record in csv.GetRecordsAsync<ImportStudentRow>(cancellationToken))
+            rows.Add(record);
+        return rows;
+    }
+
+    private static List<ImportStudentRow> ParseXlsxRows(Stream stream)
+    {
+        using var memory = new MemoryStream();
+        stream.CopyTo(memory);
+        memory.Position = 0;
+
+        using var workbook = new XLWorkbook(memory);
+        var worksheet = workbook.Worksheets.FirstOrDefault(w => w.RowsUsed().Any())
+            ?? throw new Domain.Exceptions.ValidationException("Worksheet is empty.");
+
+        var headerRow = worksheet.FirstRowUsed()
+            ?? throw new Domain.Exceptions.ValidationException("Worksheet has no header row.");
+
+        var emailCol = FindColumn(headerRow, "email");
+        var firstNameCol = FindColumn(headerRow, "firstname", "first name", "first_name");
+        var lastNameCol = FindColumn(headerRow, "lastname", "last name", "last_name");
+        var passwordCol = FindColumn(headerRow, "password");
+
+        if (emailCol is null || firstNameCol is null || lastNameCol is null)
+            throw new Domain.Exceptions.ValidationException("XLSX must include Email, FirstName, and LastName columns.");
+
+        var rows = new List<ImportStudentRow>();
+        var lastRow = worksheet.LastRowUsed()?.RowNumber() ?? headerRow.RowNumber();
+
+        for (var rowNum = headerRow.RowNumber() + 1; rowNum <= lastRow; rowNum++)
+        {
+            var row = worksheet.Row(rowNum);
+            if (row.IsEmpty())
+                continue;
+
+            var email = row.Cell(emailCol.Value).GetString().Trim();
+            var firstName = row.Cell(firstNameCol.Value).GetString().Trim();
+            var lastName = row.Cell(lastNameCol.Value).GetString().Trim();
+            var password = passwordCol.HasValue ? row.Cell(passwordCol.Value).GetString().Trim() : null;
+
+            if (string.IsNullOrWhiteSpace(email) &&
+                string.IsNullOrWhiteSpace(firstName) &&
+                string.IsNullOrWhiteSpace(lastName))
+                continue;
+
+            rows.Add(new ImportStudentRow
+            {
+                Email = email,
+                FirstName = firstName,
+                LastName = lastName,
+                Password = string.IsNullOrWhiteSpace(password) ? null : password
+            });
+        }
+
+        return rows;
+    }
+
+    private static int? FindColumn(IXLRow headerRow, params string[] names)
+    {
+        foreach (var cell in headerRow.CellsUsed())
+        {
+            var header = NormalizeHeader(cell.GetString());
+            if (names.Any(n => header == NormalizeHeader(n)))
+                return cell.Address.ColumnNumber;
+        }
+
+        return null;
+    }
+
+    private static string NormalizeHeader(string value) =>
+        value.Trim().Replace(" ", "", StringComparison.Ordinal)
+            .Replace("_", "", StringComparison.Ordinal)
+            .ToLowerInvariant();
 
     public async Task<PagedResult<StudentEnrolmentResponse>> GetStudentsAsync(int page, int pageSize, CancellationToken cancellationToken = default)
     {
@@ -183,6 +284,90 @@ public class EnrolmentService : IEnrolmentService
         {
             user.CohortId = cohort.Id;
             await _userManager.UpdateAsync(user);
+        }
+
+        await _db.SaveChangesAsync(cancellationToken);
+        return await MapStudentAsync(studentId, cancellationToken);
+    }
+
+    public async Task<StudentEnrolmentResponse> UpdateStudentAsync(
+        Guid studentId,
+        UpdateStudentRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var enrolment = await _db.StudentEnrolments
+            .Include(e => e.Student)
+            .FirstOrDefaultAsync(e => e.StudentId == studentId, cancellationToken)
+            ?? throw new NotFoundException("Student enrolment not found.");
+
+        if (!_tenant.IsApolloUser)
+            _tenant.EnsureUniversityAccess(enrolment.UniversityId);
+
+        if (string.IsNullOrWhiteSpace(request.FirstName) || string.IsNullOrWhiteSpace(request.LastName))
+            throw new Domain.Exceptions.ValidationException("First name and last name are required.");
+
+        enrolment.Student.FirstName = request.FirstName.Trim();
+        enrolment.Student.LastName = request.LastName.Trim();
+        enrolment.Student.UpdatedAt = DateTime.UtcNow;
+
+        if (!string.IsNullOrWhiteSpace(request.Status))
+        {
+            if (!Enum.TryParse<EnrolmentStatus>(request.Status, true, out var status))
+                throw new Domain.Exceptions.ValidationException("Invalid status. Use Active, Invited, or Suspended.");
+            enrolment.Status = status;
+        }
+
+        if (request.CohortId.HasValue && request.CohortId.Value != enrolment.CohortId)
+        {
+            var cohort = await _db.Cohorts.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == request.CohortId.Value, cancellationToken)
+                ?? throw new NotFoundException("Cohort not found.");
+
+            if (cohort.UniversityId != enrolment.UniversityId)
+                throw new ForbiddenException("Cohort must belong to the same university.");
+
+            enrolment.CohortId = cohort.Id;
+        }
+
+        enrolment.UpdatedAt = DateTime.UtcNow;
+
+        var user = await _userManager.Users.FirstOrDefaultAsync(u => u.StudentId == studentId, cancellationToken);
+        if (user is not null)
+        {
+            user.FirstName = enrolment.Student.FirstName;
+            user.LastName = enrolment.Student.LastName;
+
+            if (request.CohortId.HasValue)
+                user.CohortId = enrolment.CohortId;
+
+            if (!string.IsNullOrWhiteSpace(request.Status) &&
+                Enum.TryParse<EnrolmentStatus>(request.Status, true, out var userStatus))
+                user.Status = userStatus;
+
+            if (!string.IsNullOrWhiteSpace(request.Email) &&
+                !string.Equals(user.Email, request.Email.Trim(), StringComparison.OrdinalIgnoreCase))
+            {
+                var existing = await _userManager.FindByEmailAsync(request.Email.Trim());
+                if (existing is not null && existing.Id != user.Id)
+                    throw new ConflictException("User with this email already exists.");
+
+                user.Email = request.Email.Trim();
+                user.UserName = request.Email.Trim();
+                user.NormalizedEmail = request.Email.Trim().ToUpperInvariant();
+                user.NormalizedUserName = request.Email.Trim().ToUpperInvariant();
+            }
+
+            var updateResult = await _userManager.UpdateAsync(user);
+            if (!updateResult.Succeeded)
+                throw new Domain.Exceptions.ValidationException(string.Join("; ", updateResult.Errors.Select(e => e.Description)));
+
+            if (!string.IsNullOrWhiteSpace(request.Password))
+            {
+                var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+                var passwordResult = await _userManager.ResetPasswordAsync(user, token, request.Password);
+                if (!passwordResult.Succeeded)
+                    throw new Domain.Exceptions.ValidationException(string.Join("; ", passwordResult.Errors.Select(e => e.Description)));
+            }
         }
 
         await _db.SaveChangesAsync(cancellationToken);
@@ -250,7 +435,7 @@ public class EnrolmentService : IEnrolmentService
             .FirstAsync(cancellationToken);
     }
 
-    private sealed class CsvStudentRow
+    private sealed class ImportStudentRow
     {
         public string Email { get; set; } = string.Empty;
         public string FirstName { get; set; } = string.Empty;

@@ -434,6 +434,7 @@ export function ContentLibraryPage() {
       navItems={navItems}
     >
       <div ref={animRef} className="mx-auto max-w-4xl space-y-8">
+        {false && (
         <Panel title="Map existing programme content">
           <p className="mb-4 text-sm text-slate-600">
             Already uploaded lessons — select a module and map to more universities. No re-upload needed.
@@ -568,6 +569,7 @@ export function ContentLibraryPage() {
             </div>
           )}
         </Panel>
+        )}
 
         {isAdmin && (
           <Panel title="Create new module">

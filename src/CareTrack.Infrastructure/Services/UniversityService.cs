@@ -324,6 +324,100 @@ public class UniversityService : IUniversityService
         return new UniversityAdminResponse(user.Id, user.Email!, user.FullName, request.UniversityId);
     }
 
+    public async Task<IReadOnlyList<UniversityAdminResponse>> GetUniversityAdminsAsync(
+        Guid universityId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_tenant.IsApolloUser)
+            throw new ForbiddenException("Only Apollo users can list university admins.");
+
+        if (!await _db.Universities.AsNoTracking().AnyAsync(u => u.Id == universityId, cancellationToken))
+            throw new NotFoundException("University not found.");
+
+        return await _userManager.Users.AsNoTracking()
+            .Where(u => u.UniversityId == universityId && u.Role == UserRole.UniversityAdmin)
+            .OrderBy(u => u.Email)
+            .Select(u => new UniversityAdminResponse(u.Id, u.Email!, u.FullName, universityId))
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<UniversityAdminResponse> UpdateUniversityAdminAsync(
+        UpdateUniversityAdminRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_tenant.IsApolloUser)
+            throw new ForbiddenException("Only Apollo users can update university admins.");
+
+        var user = await _userManager.FindByIdAsync(request.UserId)
+            ?? throw new NotFoundException("User not found.");
+
+        if (user.Role != UserRole.UniversityAdmin || user.UniversityId != request.UniversityId)
+            throw new ForbiddenException("User is not an admin for this university.");
+
+        if (!string.IsNullOrWhiteSpace(request.Email) && !string.Equals(user.Email, request.Email, StringComparison.OrdinalIgnoreCase))
+        {
+            var existing = await _userManager.FindByEmailAsync(request.Email.Trim());
+            if (existing is not null && existing.Id != user.Id)
+                throw new ConflictException("User with this email already exists.");
+
+            user.Email = request.Email.Trim();
+            user.UserName = request.Email.Trim();
+            user.NormalizedEmail = request.Email.Trim().ToUpperInvariant();
+            user.NormalizedUserName = request.Email.Trim().ToUpperInvariant();
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.FirstName))
+            user.FirstName = request.FirstName.Trim();
+
+        if (!string.IsNullOrWhiteSpace(request.LastName))
+            user.LastName = request.LastName.Trim();
+
+        var updateResult = await _userManager.UpdateAsync(user);
+        if (!updateResult.Succeeded)
+            throw new ValidationException(string.Join("; ", updateResult.Errors.Select(e => e.Description)));
+
+        if (!string.IsNullOrWhiteSpace(request.Password))
+        {
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            var passwordResult = await _userManager.ResetPasswordAsync(user, token, request.Password);
+            if (!passwordResult.Succeeded)
+                throw new ValidationException(string.Join("; ", passwordResult.Errors.Select(e => e.Description)));
+        }
+
+        return new UniversityAdminResponse(user.Id, user.Email!, user.FullName, request.UniversityId);
+    }
+
+    public async Task<DeleteAllUniversitiesResponse> DeleteAllAsync(CancellationToken cancellationToken = default)
+    {
+        if (_tenant.Role != UserRole.ApolloAdmin)
+            throw new ForbiddenException("Only Apollo admin can delete universities.");
+
+        var ids = await _db.Universities.AsNoTracking().Select(u => u.Id).ToListAsync(cancellationToken);
+        var deleted = 0;
+        var failed = 0;
+        var errors = new List<string>();
+
+        foreach (var id in ids)
+        {
+            try
+            {
+                await DeleteAsync(id, cancellationToken);
+                deleted++;
+            }
+            catch (Exception ex)
+            {
+                failed++;
+                var name = await _db.Universities.AsNoTracking()
+                    .Where(u => u.Id == id)
+                    .Select(u => u.Name)
+                    .FirstOrDefaultAsync(cancellationToken);
+                errors.Add($"{name ?? id.ToString()}: {ex.Message}");
+            }
+        }
+
+        return new DeleteAllUniversitiesResponse(deleted, failed, errors);
+    }
+
     public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
     {
         if (_tenant.Role != UserRole.ApolloAdmin)
@@ -334,6 +428,12 @@ public class UniversityService : IUniversityService
 
         if (!string.IsNullOrWhiteSpace(university.LogoUrl))
             await _blobStorage.DeleteAsync(university.LogoUrl, cancellationToken);
+
+        var admins = await _userManager.Users
+            .Where(u => u.UniversityId == id && u.Role == UserRole.UniversityAdmin)
+            .ToListAsync(cancellationToken);
+        foreach (var admin in admins)
+            await _userManager.DeleteAsync(admin);
 
         var hasEnrolments = await _db.StudentEnrolments.AsNoTracking()
             .AnyAsync(e => e.UniversityId == id, cancellationToken);
@@ -366,6 +466,7 @@ public class UniversityService : IUniversityService
             _db.CalendarEvents.RemoveRange(_db.CalendarEvents.Where(x => x.UniversityId == id));
             _db.DiscussionThreads.RemoveRange(_db.DiscussionThreads.Where(x => x.UniversityId == id));
             _db.DiscussionPosts.RemoveRange(_db.DiscussionPosts.Where(x => x.Thread.UniversityId == id));
+            _db.CertificateTemplates.RemoveRange(_db.CertificateTemplates.Where(t => t.UniversityId == id));
 
             _db.Universities.Remove(university);
             await _db.SaveChangesAsync(cancellationToken);

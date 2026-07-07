@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { BookOpen, Building2, ClipboardList, FileStack, Globe, Layers, Users } from 'lucide-react'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { api } from '@/lib/api-client'
+import { assetUrl } from '@/lib/asset-url'
 import { authStore } from '@/lib/auth-store'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
 import { StatCard } from '@/components/dashboard/StatCard'
@@ -89,7 +90,7 @@ export function ApolloDashboard() {
 
         <Panel title="Partner universities">
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {universities.data?.items?.map((u: { id: string; name: string; domain: string; isActive: boolean }) => (
+            {universities.data?.items?.map((u: { id: string; name: string; domain: string; isActive: boolean; logoUrl?: string }) => (
               <Link
                 key={u.id}
                 to={`/apollo/universities/${u.id}`}
@@ -97,8 +98,12 @@ export function ApolloDashboard() {
                 className="group block rounded-xl border border-slate-100 bg-gradient-to-br from-white to-slate-50 p-5 transition hover:border-[#2081A1]/40 hover:shadow-md"
               >
                 <div className="flex items-start gap-3">
-                  <div className="rounded-lg bg-indigo-100 p-2 text-indigo-700 transition group-hover:bg-[#2081A1]/10 group-hover:text-[#2081A1]">
-                    <Building2 className="h-5 w-5" />
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-indigo-100 p-1 text-indigo-700 transition group-hover:bg-[#2081A1]/10 group-hover:text-[#2081A1]">
+                    {assetUrl(u.logoUrl) ? (
+                      <img src={assetUrl(u.logoUrl)!} alt="" className="h-full w-full object-contain" />
+                    ) : (
+                      <Building2 className="h-5 w-5" />
+                    )}
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-slate-900 group-hover:text-[#2081A1]">{u.name}</p>
