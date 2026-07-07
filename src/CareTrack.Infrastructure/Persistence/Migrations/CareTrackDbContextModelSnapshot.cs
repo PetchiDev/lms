@@ -50,7 +50,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("QuizId", "ContentVersionId")
                         .IsUnique();
 
-                    b.ToTable("AssessmentContentVersions");
+                    b.ToTable("AssessmentContentVersions", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.AttendanceRecord", b =>
@@ -100,7 +100,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("RotationAssignmentId", "RecordDate");
 
-                    b.ToTable("AttendanceRecords");
+                    b.ToTable("AttendanceRecords", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.CalendarEvent", b =>
@@ -150,7 +150,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UniversityId");
 
-                    b.ToTable("CalendarEvents");
+                    b.ToTable("CalendarEvents", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Certificate", b =>
@@ -190,7 +190,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StudentId");
 
-                    b.ToTable("Certificates");
+                    b.ToTable("Certificates", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.CertificateTemplate", b =>
@@ -270,7 +270,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("CertificateTemplates");
+                    b.ToTable("CertificateTemplates", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Cohort", b =>
@@ -314,7 +314,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("UniversityId", "Name")
                         .IsUnique();
 
-                    b.ToTable("Cohorts");
+                    b.ToTable("Cohorts", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.ContentPublication", b =>
@@ -347,7 +347,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("LessonId", "UniversityId");
 
-                    b.ToTable("ContentPublications");
+                    b.ToTable("ContentPublications", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.ContentVersion", b =>
@@ -392,7 +392,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("LessonId", "VersionNumber")
                         .IsUnique();
 
-                    b.ToTable("ContentVersions");
+                    b.ToTable("ContentVersions", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.DiscussionPost", b =>
@@ -427,7 +427,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ThreadId");
 
-                    b.ToTable("DiscussionPosts");
+                    b.ToTable("DiscussionPosts", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.DiscussionThread", b =>
@@ -465,7 +465,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UniversityId");
 
-                    b.ToTable("DiscussionThreads");
+                    b.ToTable("DiscussionThreads", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.GradeSyncRecord", b =>
@@ -503,7 +503,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StudentId");
 
-                    b.ToTable("GradeSyncRecords");
+                    b.ToTable("GradeSyncRecords", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.GradeSyncRequest", b =>
@@ -557,7 +557,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UniversityId");
 
-                    b.ToTable("GradeSyncRequests");
+                    b.ToTable("GradeSyncRequests", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.HospitalAttendanceFeed", b =>
@@ -600,7 +600,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("UniversityId", "ExternalRecordId")
                         .IsUnique();
 
-                    b.ToTable("HospitalAttendanceFeeds");
+                    b.ToTable("HospitalAttendanceFeeds", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.HospitalDepartment", b =>
@@ -637,7 +637,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("UniversityId", "Code")
                         .IsUnique();
 
-                    b.ToTable("HospitalDepartments");
+                    b.ToTable("HospitalDepartments", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Lesson", b =>
@@ -680,7 +680,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ModuleId");
 
-                    b.ToTable("Lessons");
+                    b.ToTable("Lessons", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.LessonAsset", b =>
@@ -720,7 +720,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("LessonId");
 
-                    b.ToTable("LessonAssets");
+                    b.ToTable("LessonAssets", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.LessonProgress", b =>
@@ -763,7 +763,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("StudentId", "LessonId")
                         .IsUnique();
 
-                    b.ToTable("LessonProgresses");
+                    b.ToTable("LessonProgresses", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.LiveClassSession", b =>
@@ -796,7 +796,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("CalendarEventId")
                         .IsUnique();
 
-                    b.ToTable("LiveClassSessions");
+                    b.ToTable("LiveClassSessions", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.LogbookEntry", b =>
@@ -866,7 +866,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UniversityId");
 
-                    b.ToTable("LogbookEntries");
+                    b.ToTable("LogbookEntries", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Module", b =>
@@ -900,7 +900,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SemesterId");
 
-                    b.ToTable("Modules");
+                    b.ToTable("Modules", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.ModulePrerequisite", b =>
@@ -928,7 +928,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("ModuleId", "PrerequisiteModuleId")
                         .IsUnique();
 
-                    b.ToTable("ModulePrerequisites");
+                    b.ToTable("ModulePrerequisites", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.ModuleProgress", b =>
@@ -965,7 +965,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("StudentId", "ModuleId")
                         .IsUnique();
 
-                    b.ToTable("ModuleProgresses");
+                    b.ToTable("ModuleProgresses", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Notification", b =>
@@ -1020,7 +1020,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UserId", "IsRead");
 
-                    b.ToTable("Notifications");
+                    b.ToTable("Notifications", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.OfflineAssessmentResult", b =>
@@ -1064,7 +1064,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StudentId");
 
-                    b.ToTable("OfflineAssessmentResults");
+                    b.ToTable("OfflineAssessmentResults", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Programme", b =>
@@ -1101,7 +1101,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.ToTable("Programmes");
+                    b.ToTable("Programmes", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.ProgrammeYear", b =>
@@ -1131,7 +1131,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProgrammeId", "YearNumber")
                         .IsUnique();
 
-                    b.ToTable("ProgrammeYears");
+                    b.ToTable("ProgrammeYears", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Quiz", b =>
@@ -1172,7 +1172,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ModuleId");
 
-                    b.ToTable("Quizzes");
+                    b.ToTable("Quizzes", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.QuizAnswer", b =>
@@ -1207,7 +1207,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SelectedOptionId");
 
-                    b.ToTable("QuizAnswers");
+                    b.ToTable("QuizAnswers", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.QuizAttempt", b =>
@@ -1249,7 +1249,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("StudentId");
 
-                    b.ToTable("QuizAttempts");
+                    b.ToTable("QuizAttempts", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.QuizOption", b =>
@@ -1281,7 +1281,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("QuestionId");
 
-                    b.ToTable("QuizOptions");
+                    b.ToTable("QuizOptions", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.QuizQuestion", b =>
@@ -1313,7 +1313,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("QuizId");
 
-                    b.ToTable("QuizQuestions");
+                    b.ToTable("QuizQuestions", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Rotation", b =>
@@ -1367,7 +1367,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UniversityId");
 
-                    b.ToTable("Rotations");
+                    b.ToTable("Rotations", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.RotationAssignment", b =>
@@ -1412,7 +1412,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("RotationId", "StudentId")
                         .IsUnique();
 
-                    b.ToTable("RotationAssignments");
+                    b.ToTable("RotationAssignments", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Semester", b =>
@@ -1442,7 +1442,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("ProgrammeYearId", "SemesterNumber")
                         .IsUnique();
 
-                    b.ToTable("Semesters");
+                    b.ToTable("Semesters", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.SignOffEscalation", b =>
@@ -1484,7 +1484,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UniversityId");
 
-                    b.ToTable("SignOffEscalations");
+                    b.ToTable("SignOffEscalations", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.SisRosterSyncRecord", b =>
@@ -1524,7 +1524,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("SyncRunId");
 
-                    b.ToTable("SisRosterSyncRecords");
+                    b.ToTable("SisRosterSyncRecords", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.SisRosterSyncRun", b =>
@@ -1570,7 +1570,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UniversityId");
 
-                    b.ToTable("SisRosterSyncRuns");
+                    b.ToTable("SisRosterSyncRuns", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Student", b =>
@@ -1602,7 +1602,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("Students");
+                    b.ToTable("Students", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.StudentEnrolment", b =>
@@ -1649,7 +1649,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("UniversityId", "StudentId")
                         .IsUnique();
 
-                    b.ToTable("StudentEnrolments");
+                    b.ToTable("StudentEnrolments", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Supervisor", b =>
@@ -1690,7 +1690,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("Supervisors");
+                    b.ToTable("Supervisors", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.SupervisorDelegation", b =>
@@ -1731,7 +1731,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("UniversityId");
 
-                    b.ToTable("SupervisorDelegations");
+                    b.ToTable("SupervisorDelegations", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.TenantIdpConfig", b =>
@@ -1772,7 +1772,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("UniversityId")
                         .IsUnique();
 
-                    b.ToTable("TenantIdpConfigs");
+                    b.ToTable("TenantIdpConfigs", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.University", b =>
@@ -1805,7 +1805,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("Domain")
                         .IsUnique();
 
-                    b.ToTable("Universities");
+                    b.ToTable("Universities", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.UniversityProgramme", b =>
@@ -1833,7 +1833,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.HasIndex("UniversityId", "ProgrammeId")
                         .IsUnique();
 
-                    b.ToTable("UniversityProgrammes");
+                    b.ToTable("UniversityProgrammes", (string)null);
                 });
 
             modelBuilder.Entity("CareTrack.Infrastructure.Identity.ApplicationUser", b =>

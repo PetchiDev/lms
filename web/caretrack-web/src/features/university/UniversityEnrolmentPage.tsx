@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Upload, UserPlus } from 'lucide-react'
-import { Link } from 'react-router-dom'
 import { api, getErrorMessage } from '@/lib/api-client'
 import { authStore } from '@/lib/auth-store'
 import { UniPanel } from '@/components/layout/UniversityShell'

@@ -60,8 +60,11 @@ public class LearningService : ILearningService
 
         var lessons = await _db.Lessons.AsNoTracking()
             .Where(l => l.ModuleId == moduleId && l.Status == ContentStatus.Published)
-            .Where(l => _db.ContentPublications.Any(p =>
-                p.LessonId == l.Id && (p.UniversityId == null || p.UniversityId == ctx.UniversityId)))
+            .Where(l =>
+                _db.ContentPublications.Any(p =>
+                    p.LessonId == l.Id && (p.UniversityId == null || p.UniversityId == ctx.UniversityId))
+                || _db.UniversityProgrammes.Any(up =>
+                    up.UniversityId == ctx.UniversityId && up.ProgrammeId == ctx.ProgrammeId))
             .OrderBy(l => l.SortOrder)
             .Select(l => new { l.Id, l.Title })
             .ToListAsync(cancellationToken);
@@ -95,8 +98,12 @@ public class LearningService : ILearningService
 
         var lesson = await _db.Lessons.AsNoTracking()
             .Where(l => l.Id == lessonId && l.Status == ContentStatus.Published)
-            .Where(l => _db.ContentPublications.Any(p =>
-                p.LessonId == l.Id && (p.UniversityId == null || p.UniversityId == ctx.UniversityId)))
+            .Where(l =>
+                _db.ContentPublications.Any(p =>
+                    p.LessonId == l.Id && (p.UniversityId == null || p.UniversityId == ctx.UniversityId))
+                || _db.UniversityProgrammes.Any(up =>
+                    up.UniversityId == ctx.UniversityId
+                    && up.ProgrammeId == l.Module.Semester.ProgrammeYear.ProgrammeId))
             .Select(l => new
             {
                 l.Id,
@@ -225,10 +232,18 @@ public class LearningService : ILearningService
 
     private async Task<List<Guid>> GetPublishedLessonIdsAsync(Guid moduleId, Guid universityId, CancellationToken cancellationToken)
     {
+        var programmeId = await _db.Modules.AsNoTracking()
+            .Where(m => m.Id == moduleId)
+            .Select(m => m.Semester.ProgrammeYear.ProgrammeId)
+            .FirstAsync(cancellationToken);
+
         return await _db.Lessons.AsNoTracking()
             .Where(l => l.ModuleId == moduleId && l.Status == ContentStatus.Published)
-            .Where(l => _db.ContentPublications.Any(p =>
-                p.LessonId == l.Id && (p.UniversityId == null || p.UniversityId == universityId)))
+            .Where(l =>
+                _db.ContentPublications.Any(p =>
+                    p.LessonId == l.Id && (p.UniversityId == null || p.UniversityId == universityId))
+                || _db.UniversityProgrammes.Any(up =>
+                    up.UniversityId == universityId && up.ProgrammeId == programmeId))
             .OrderBy(l => l.SortOrder)
             .Select(l => l.Id)
             .ToListAsync(cancellationToken);

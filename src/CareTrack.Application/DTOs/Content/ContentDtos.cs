@@ -11,7 +11,17 @@ public record LessonResponse(
     string Description,
     string Status,
     int SortOrder,
-    IReadOnlyList<LessonAssetResponse> Assets);
+    IReadOnlyList<LessonAssetResponse> Assets,
+    IReadOnlyList<PublishedUniversityInfo> PublishedTo);
+
+public record PublishedUniversityInfo(Guid? UniversityId, string Name);
+
+public record LessonListItemResponse(
+    Guid Id,
+    string Title,
+    string Status,
+    int AssetCount,
+    IReadOnlyList<PublishedUniversityInfo> PublishedTo);
 
 public record LessonAssetResponse(
     Guid Id,
@@ -24,6 +34,8 @@ public record LessonAssetResponse(
 public record UpdateLessonStatusRequest(string Status);
 
 public record PublishLessonRequest(IReadOnlyList<Guid>? UniversityIds);
+
+public record PublishModuleRequest(IReadOnlyList<Guid>? UniversityIds);
 
 public record ModulePickerResponse(
     Guid ModuleId,

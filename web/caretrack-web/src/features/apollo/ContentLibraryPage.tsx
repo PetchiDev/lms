@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
-import { BarChart3, BookOpen, Building2, CheckCircle2, FileStack, LayoutDashboard, Plus, Trash2, Upload } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { CheckCircle2, FileStack, Plus, Send, Trash2, Upload } from 'lucide-react'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { api, getErrorMessage } from '@/lib/api-client'
 import { authStore } from '@/lib/auth-store'
@@ -56,6 +56,10 @@ export function ContentLibraryPage() {
   const [semesterId, setSemesterId] = useState('')
   const [moduleTitle, setModuleTitle] = useState('')
   const [moduleDescription, setModuleDescription] = useState('')
+
+  // Existing content mapping
+  const [existingModuleId, setExistingModuleId] = useState('')
+  const [filterProgrammeId, setFilterProgrammeId] = useState('')
 
   // Lesson creation
   const [moduleId, setModuleId] = useState('')
@@ -126,6 +130,21 @@ export function ContentLibraryPage() {
   const modules = useQuery({
     queryKey: ['content-modules'],
     queryFn: async () => (await api.get('/content/modules')).data,
+  })
+
+  const filteredModules = useMemo(() => {
+    const list = modules.data ?? []
+    if (!filterProgrammeId) return list
+    return list.filter((m: { programmeName: string }) => {
+      const programme = programmes.data?.find((p: { id: string; name: string }) => p.id === filterProgrammeId)
+      return programme && m.programmeName === programme.name
+    })
+  }, [modules.data, filterProgrammeId, programmes.data])
+
+  const moduleLessons = useQuery({
+    queryKey: ['module-lessons', existingModuleId],
+    queryFn: async () => (await api.get(`/content/modules/${existingModuleId}/lessons`)).data,
+    enabled: !!existingModuleId,
   })
 
   const universities = useQuery({
@@ -278,11 +297,54 @@ export function ContentLibraryPage() {
       await api.post(`/content/lessons/${id}/publish`, { universityIds: ids })
     },
     onSuccess: () => {
-      setPublishMessage('Published successfully. Programme auto-linked to selected universities.')
+      setPublishMessage('Mapped to selected universities. Programme auto-linked where needed.')
       queryClient.invalidateQueries({ queryKey: ['content-lesson', selectedLesson] })
+      queryClient.invalidateQueries({ queryKey: ['module-lessons', existingModuleId] })
     },
     onError: (err) => setPublishMessage(getErrorMessage(err)),
   })
+
+  const publishModule = useMutation({
+    mutationFn: async () => {
+      const ids = selectedUniversities.length > 0 ? selectedUniversities : null
+      return api.post(`/content/modules/${existingModuleId}/publish`, { universityIds: ids })
+    },
+    onSuccess: (res) => {
+      setPublishMessage(`All ${res.data.lessonsPublished} lessons in module mapped to selected universities.`)
+      queryClient.invalidateQueries({ queryKey: ['module-lessons', existingModuleId] })
+      if (selectedLesson) queryClient.invalidateQueries({ queryKey: ['content-lesson', selectedLesson] })
+    },
+    onError: (err) => setPublishMessage(getErrorMessage(err)),
+  })
+
+  function selectExistingLesson(
+    lessonId: string,
+    publishedTo: { universityId?: string | null; name: string }[],
+  ) {
+    setSelectedLesson(lessonId)
+    setPublishMessage(null)
+    setWorkflowMessage(null)
+    if (publishedTo.some((p) => !p.universityId)) {
+      setSelectedUniversities(uniList.map((u) => u.id))
+    } else {
+      setSelectedUniversities(
+        publishedTo.map((p) => p.universityId).filter((id): id is string => !!id),
+      )
+    }
+  }
+
+  useEffect(() => {
+    const publishedTo: { universityId?: string | null; name: string }[] =
+      selectedLessonQuery.data?.publishedTo ?? []
+    if (!selectedLesson || publishedTo.length === 0) return
+    if (publishedTo.some((p) => !p.universityId)) {
+      setSelectedUniversities(uniList.map((u) => u.id))
+    } else {
+      setSelectedUniversities(
+        publishedTo.map((p) => p.universityId).filter((id): id is string => !!id),
+      )
+    }
+  }, [selectedLessonQuery.data?.publishedTo, selectedLesson, uniList])
 
   function toggleUniversity(id: string) {
     setSelectedUniversities((prev) =>
@@ -339,6 +401,141 @@ export function ContentLibraryPage() {
       navItems={navItems}
     >
       <div ref={animRef} className="mx-auto max-w-4xl space-y-8">
+        <Panel title="Map existing programme content">
+          <p className="mb-4 text-sm text-slate-600">
+            Already uploaded lessons — select a module and map to more universities. No re-upload needed.
+          </p>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Filter by programme (optional)</Label>
+              <select
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2081A1]"
+                value={filterProgrammeId}
+                onChange={(e) => {
+                  setFilterProgrammeId(e.target.value)
+                  setExistingModuleId('')
+                }}
+              >
+                <option value="">All programmes</option>
+                {programmes.data?.map((p: { id: string; name: string }) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Module</Label>
+              <select
+                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2081A1]"
+                value={existingModuleId}
+                onChange={(e) => {
+                  setExistingModuleId(e.target.value)
+                  setSelectedLesson(null)
+                }}
+              >
+                <option value="">Select module with existing content</option>
+                {filteredModules.map((m: { moduleId: string; moduleTitle: string; programmeName: string }) => (
+                  <option key={m.moduleId} value={m.moduleId}>
+                    {m.programmeName} · {m.moduleTitle}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {existingModuleId && (
+            <div className="mt-4 space-y-2">
+              <Label>Lessons in this module</Label>
+              {(moduleLessons.data ?? []).length === 0 ? (
+                <p className="text-sm text-slate-500">No lessons in this module yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {(moduleLessons.data ?? []).map((l: {
+                    id: string
+                    title: string
+                    status: string
+                    assetCount: number
+                    publishedTo: { universityId?: string | null; name: string }[]
+                  }) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => selectExistingLesson(l.id, l.publishedTo)}
+                      className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left transition hover:border-[#2081A1]/40 hover:bg-[#2081A1]/5 ${
+                        selectedLesson === l.id ? 'border-[#2081A1] bg-[#2081A1]/5 ring-1 ring-[#2081A1]/30' : 'border-slate-200 bg-white'
+                      }`}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium text-slate-900">{l.title}</p>
+                        <p className="text-xs text-slate-500">
+                          {l.status} · {l.assetCount} file{l.assetCount === 1 ? '' : 's'}
+                        </p>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        {l.publishedTo.length > 0 ? (
+                          <p className="text-xs text-emerald-700">
+                            {l.publishedTo.map((p) => p.name).join(', ')}
+                          </p>
+                        ) : (
+                          <p className="text-xs text-amber-600">Not published</p>
+                        )}
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {(moduleLessons.data ?? []).length > 0 && (
+                <>
+                  <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex items-center justify-between">
+                      <Label>Universities to map</Label>
+                      {uniList.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={selectAllUniversities}
+                          className="text-xs font-medium text-[#2081A1] hover:underline"
+                        >
+                          {selectedUniversities.length === uniList.length ? 'Deselect all' : 'Select all'}
+                        </button>
+                      )}
+                    </div>
+                    <div className="max-h-40 space-y-2 overflow-y-auto">
+                      {uniList.map((u) => (
+                        <label
+                          key={u.id}
+                          className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-white ${
+                            selectedUniversities.includes(u.id) ? 'bg-white ring-1 ring-[#2081A1]/30' : ''
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedUniversities.includes(u.id)}
+                            onChange={() => toggleUniversity(u.id)}
+                            className="h-4 w-4 rounded border-slate-300 text-[#2081A1]"
+                          />
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{u.name}</p>
+                            <p className="text-xs text-slate-500">{u.domain}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="mt-3 border-[#2081A1] text-[#2081A1]"
+                    onClick={() => publishModule.mutate()}
+                    disabled={publishModule.isPending || selectedUniversities.length === 0}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    {publishModule.isPending ? 'Mapping…' : 'Map entire module to selected universities'}
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+        </Panel>
+
         {isAdmin && (
           <Panel title="Create new module">
             <div className="grid gap-4 md:grid-cols-2">
@@ -581,21 +778,22 @@ export function ContentLibraryPage() {
               )}
               <p className="text-xs text-slate-500">
                 {selectedUniversities.length === 0
-                  ? 'Select one or more universities, or leave empty to publish to all.'
-                  : `${selectedUniversities.length} universit${selectedUniversities.length === 1 ? 'y' : 'ies'} selected`}
+                  ? 'Select universities to map this content. Already-mapped universities are kept.'
+                  : `${selectedUniversities.length} universit${selectedUniversities.length === 1 ? 'y' : 'ies'} selected — new selections are added without removing existing access.`}
               </p>
               <Button
                 className="bg-[#2081A1]"
                 onClick={() => publish.mutate(selectedLesson)}
                 disabled={
                   publish.isPending
+                  || selectedUniversities.length === 0
                   || (!isAdmin && lessonStatus !== 'PendingReview' && lessonStatus !== 'Published')
                 }
               >
-                {publish.isPending ? 'Publishing…' : 'Publish to universities'}
+                {publish.isPending ? 'Mapping…' : 'Map to selected universities'}
               </Button>
               {publishMessage && (
-                <p className={`text-sm ${publishMessage.includes('success') ? 'text-emerald-600' : 'text-red-600'}`}>
+                <p className={`text-sm ${publishMessage.includes('Mapped') || publishMessage.includes('mapped') || publishMessage.includes('lessons') ? 'text-emerald-600' : 'text-red-600'}`}>
                   {publishMessage}
                 </p>
               )}

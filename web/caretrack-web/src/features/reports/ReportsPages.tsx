@@ -2,12 +2,9 @@ import { useQuery } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
-  BarChart3,
-  BookOpen,
   Building2,
   Download,
   Globe,
-  LayoutDashboard,
   TrendingUp,
   Users,
 } from 'lucide-react'

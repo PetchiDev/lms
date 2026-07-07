@@ -11,4 +11,5 @@ public interface IProgrammeService
     Task<ModuleSummaryResponse> AddModuleAsync(Guid semesterId, CreateModuleRequest request, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<ProgrammeResponse>> GetAllAsync(CancellationToken cancellationToken = default);
     Task<ProgrammeCatalogueResponse> GetCatalogueAsync(CancellationToken cancellationToken = default);
+    Task DeleteAsync(Guid programmeId, CancellationToken cancellationToken = default);
 }

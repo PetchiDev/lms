@@ -107,6 +107,7 @@ export function LessonPlayerPage() {
   const videoRef = useRef<HTMLVideoElement>(null)
   const queryClient = useQueryClient()
   const [watched, setWatched] = useState(0)
+  const navigate = useNavigate()
   const shell = useStudentShellProps()
 
   const { data: lesson } = useQuery({
@@ -146,6 +147,14 @@ export function LessonPlayerPage() {
   return (
     <StudentShell {...shell}>
       <div className="mx-auto max-w-4xl">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="mb-4 text-[#2d5f5a]"
+          onClick={() => navigate(-1)}
+        >
+          <ArrowLeft className="mr-1 h-4 w-4" /> Back
+        </Button>
         <h1 className="font-display text-2xl font-bold text-[#1a1d1f]">{lesson?.title ?? 'Lesson'}</h1>
         <p className="mt-1 text-sm text-slate-500">Progress: {lesson?.progressPercent ?? 0}%</p>
         <div className="mt-6 overflow-hidden rounded-2xl border border-[#e0e4d8] bg-white shadow-lg">

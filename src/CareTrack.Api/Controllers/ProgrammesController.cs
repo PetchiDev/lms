@@ -59,4 +59,14 @@ public class ProgrammesController : ControllerBase
     [ProducesResponseType(typeof(ModuleSummaryResponse), StatusCodes.Status201Created)]
     public async Task<ActionResult<ModuleSummaryResponse>> AddModule(Guid semesterId, [FromBody] CreateModuleRequest request, CancellationToken cancellationToken)
         => Ok(await _service.AddModuleAsync(semesterId, request, cancellationToken));
+
+    /// <summary>Deletes a programme and its full structure (years/semesters/modules/content).</summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await _service.DeleteAsync(id, cancellationToken);
+        return NoContent();
+    }
 }

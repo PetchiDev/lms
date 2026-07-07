@@ -4,11 +4,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowLeft,
-  BarChart3,
-  BookOpen,
   Building2,
   GraduationCap,
-  LayoutDashboard,
   Mail,
   Users,
 } from 'lucide-react'

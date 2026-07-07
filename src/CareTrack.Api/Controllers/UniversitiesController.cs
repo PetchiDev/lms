@@ -52,6 +52,16 @@ public class UniversitiesController : ControllerBase
         [FromBody] SetUniversityProgrammesRequest request,
         CancellationToken cancellationToken)
         => Ok(await _service.SetProgrammesAsync(id, request, cancellationToken));
+
+    /// <summary>Deletes a university (only when no active data depends on it).</summary>
+    [HttpDelete("{id:guid}")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
+    {
+        await _service.DeleteAsync(id, cancellationToken);
+        return NoContent();
+    }
 }
 
 [ApiController]

@@ -13,11 +13,13 @@ public class ProgrammeService : IProgrammeService
 {
     private readonly CareTrackDbContext _db;
     private readonly ITenantContext _tenant;
+    private readonly IBlobStorageService _blobStorage;
 
-    public ProgrammeService(CareTrackDbContext db, ITenantContext tenant)
+    public ProgrammeService(CareTrackDbContext db, ITenantContext tenant, IBlobStorageService blobStorage)
     {
         _db = db;
         _tenant = tenant;
+        _blobStorage = blobStorage;
     }
 
     public async Task<ProgrammeResponse> CreateAsync(CreateProgrammeRequest request, CancellationToken cancellationToken = default)
@@ -259,5 +261,82 @@ public class ProgrammeService : IProgrammeService
             modulesWithContent,
             modulesWithAssessment,
             universityMap.Count);
+    }
+
+    public async Task DeleteAsync(Guid programmeId, CancellationToken cancellationToken = default)
+    {
+        if (_tenant.Role != UserRole.ApolloAdmin)
+            throw new ForbiddenException("Only Apollo admin can delete programmes.");
+
+        if (!await _db.Programmes.AsNoTracking().AnyAsync(p => p.Id == programmeId, cancellationToken))
+            throw new NotFoundException("Programme not found.");
+
+        var hasEnrolments = await _db.StudentEnrolments.AsNoTracking()
+            .AnyAsync(e => e.Cohort.ProgrammeId == programmeId, cancellationToken);
+        if (hasEnrolments)
+            throw new ConflictException("Cannot delete programme while students are enrolled. Remove enrolments/cohorts first.");
+
+        await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            var lessonAssets = await _db.LessonAssets.AsNoTracking()
+                .Where(a => a.Lesson.Module.Semester.ProgrammeYear.ProgrammeId == programmeId)
+                .Select(a => a.BlobUrl)
+                .ToListAsync(cancellationToken);
+
+            foreach (var blobUrl in lessonAssets)
+                await _blobStorage.DeleteAsync(blobUrl, cancellationToken);
+
+            var lessonIds = await _db.Lessons.AsNoTracking()
+                .Where(l => l.Module.Semester.ProgrammeYear.ProgrammeId == programmeId)
+                .Select(l => l.Id)
+                .ToListAsync(cancellationToken);
+
+            var moduleIds = await _db.Modules.AsNoTracking()
+                .Where(m => m.Semester.ProgrammeYear.ProgrammeId == programmeId)
+                .Select(m => m.Id)
+                .ToListAsync(cancellationToken);
+
+            var quizIds = await _db.Quizzes.AsNoTracking()
+                .Where(q => moduleIds.Contains(q.ModuleId))
+                .Select(q => q.Id)
+                .ToListAsync(cancellationToken);
+
+            var attemptIds = await _db.QuizAttempts.AsNoTracking()
+                .Where(a => quizIds.Contains(a.QuizId))
+                .Select(a => a.Id)
+                .ToListAsync(cancellationToken);
+
+            _db.QuizAnswers.RemoveRange(_db.QuizAnswers.Where(a => attemptIds.Contains(a.AttemptId)));
+            _db.QuizAttempts.RemoveRange(_db.QuizAttempts.Where(a => quizIds.Contains(a.QuizId)));
+            _db.QuizOptions.RemoveRange(_db.QuizOptions.Where(o => quizIds.Contains(o.Question.QuizId)));
+            _db.QuizQuestions.RemoveRange(_db.QuizQuestions.Where(q => quizIds.Contains(q.QuizId)));
+            _db.Quizzes.RemoveRange(_db.Quizzes.Where(q => quizIds.Contains(q.Id)));
+
+            _db.LessonProgresses.RemoveRange(_db.LessonProgresses.Where(p => lessonIds.Contains(p.LessonId)));
+            _db.ModuleProgresses.RemoveRange(_db.ModuleProgresses.Where(p => moduleIds.Contains(p.ModuleId)));
+
+            _db.ContentPublications.RemoveRange(_db.ContentPublications.Where(p => lessonIds.Contains(p.LessonId)));
+            _db.LessonAssets.RemoveRange(_db.LessonAssets.Where(a => lessonIds.Contains(a.LessonId)));
+            _db.Lessons.RemoveRange(_db.Lessons.Where(l => lessonIds.Contains(l.Id)));
+
+            _db.UniversityProgrammes.RemoveRange(_db.UniversityProgrammes.Where(up => up.ProgrammeId == programmeId));
+            _db.Cohorts.RemoveRange(_db.Cohorts.Where(c => c.ProgrammeId == programmeId));
+
+            _db.Modules.RemoveRange(_db.Modules.Where(m => moduleIds.Contains(m.Id)));
+            _db.Semesters.RemoveRange(_db.Semesters.Where(s => s.ProgrammeYear.ProgrammeId == programmeId));
+            _db.ProgrammeYears.RemoveRange(_db.ProgrammeYears.Where(y => y.ProgrammeId == programmeId));
+
+            _db.Certificates.RemoveRange(_db.Certificates.Where(c => c.ProgrammeId == programmeId));
+            _db.Programmes.RemoveRange(_db.Programmes.Where(p => p.Id == programmeId));
+
+            await _db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 }

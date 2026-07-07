@@ -22,8 +22,8 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !isLoginRequest) {
       authStore.clear()
       clearStudentCache()
-      if (window.location.pathname !== '/login') {
-        window.location.assign('/login')
+      if (!window.location.hash.startsWith('#/login')) {
+        window.location.hash = '#/login'
       }
     }
     return Promise.reject(error)

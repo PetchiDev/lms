@@ -22,6 +22,19 @@ public class ContentController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<ModulePickerResponse>>> GetModules(CancellationToken cancellationToken)
         => Ok(await _service.GetModulesAsync(cancellationToken));
 
+    [HttpGet("modules/{moduleId:guid}/lessons")]
+    [ProducesResponseType(typeof(IReadOnlyList<LessonListItemResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<IReadOnlyList<LessonListItemResponse>>> GetModuleLessons(Guid moduleId, CancellationToken cancellationToken)
+        => Ok(await _service.GetModuleLessonsAsync(moduleId, cancellationToken));
+
+    [HttpPost("modules/{moduleId:guid}/publish")]
+    [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
+    public async Task<ActionResult<object>> PublishModule(Guid moduleId, [FromBody] PublishModuleRequest request, CancellationToken cancellationToken)
+    {
+        var count = await _service.PublishModuleAsync(moduleId, request, cancellationToken);
+        return Ok(new { lessonsPublished = count });
+    }
+
     [HttpPost("lessons")]
     [ProducesResponseType(typeof(LessonResponse), StatusCodes.Status201Created)]
     public async Task<ActionResult<LessonResponse>> CreateLesson([FromBody] CreateLessonRequest request, CancellationToken cancellationToken)

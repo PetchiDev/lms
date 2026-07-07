@@ -33,7 +33,7 @@ builder.Services.AddOutputCache();
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("Frontend", policy =>
-        policy.WithOrigins(builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? ["http://localhost:5173"])
+        policy.AllowAnyOrigin()
             .AllowAnyHeader()
             .AllowAnyMethod());
 });

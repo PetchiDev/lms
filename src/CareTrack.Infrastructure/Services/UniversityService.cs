@@ -17,17 +17,20 @@ public class UniversityService : IUniversityService
     private readonly ITenantContext _tenant;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IEmailService _emailService;
+    private readonly IContentService _contentService;
 
     public UniversityService(
         CareTrackDbContext db,
         ITenantContext tenant,
         UserManager<ApplicationUser> userManager,
-        IEmailService emailService)
+        IEmailService emailService,
+        IContentService contentService)
     {
         _db = db;
         _tenant = tenant;
         _userManager = userManager;
         _emailService = emailService;
+        _contentService = contentService;
     }
 
     public async Task<UniversityResponse> CreateAsync(CreateUniversityRequest request, CancellationToken cancellationToken = default)
@@ -140,22 +143,33 @@ public class UniversityService : IUniversityService
         foreach (var programmeId in programmeIds)
             await EnsureDefaultCohortAsync(id, programmeId, cancellationToken);
 
+        foreach (var programmeId in programmeIds)
+            await _contentService.PublishProgrammeLessonsToUniversityAsync(programmeId, id, cancellationToken);
+
         return await MapAsync(id, cancellationToken);
     }
 
     private async Task EnsureDefaultCohortAsync(Guid universityId, Guid programmeId, CancellationToken cancellationToken)
     {
+        var year = DateTime.UtcNow.Year;
+
         var hasCohort = await _db.Cohorts.IgnoreQueryFilters()
-            .AnyAsync(c => c.UniversityId == universityId && c.ProgrammeId == programmeId, cancellationToken);
+            .AnyAsync(c => c.UniversityId == universityId && c.ProgrammeId == programmeId && c.IntakeYear == year, cancellationToken);
 
         if (hasCohort) return;
 
-        var year = DateTime.UtcNow.Year;
+        var programmeCode = await _db.Programmes.AsNoTracking()
+            .Where(p => p.Id == programmeId)
+            .Select(p => p.Code)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var label = string.IsNullOrWhiteSpace(programmeCode) ? "Programme" : programmeCode.Trim();
+
         _db.Cohorts.Add(new Cohort
         {
             UniversityId = universityId,
             ProgrammeId = programmeId,
-            Name = $"{year} Intake",
+            Name = $"{label} {year} Intake",
             IntakeYear = year,
             CurrentYear = 1,
             CurrentSemester = 1
@@ -222,6 +236,57 @@ public class UniversityService : IUniversityService
             throw new ValidationException(string.Join("; ", result.Errors.Select(e => e.Description)));
 
         return new UniversityAdminResponse(user.Id, user.Email!, user.FullName, request.UniversityId);
+    }
+
+    public async Task DeleteAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        if (_tenant.Role != UserRole.ApolloAdmin)
+            throw new ForbiddenException("Only Apollo admin can delete universities.");
+
+        var university = await _db.Universities.FindAsync([id], cancellationToken)
+            ?? throw new NotFoundException("University not found.");
+
+        var hasEnrolments = await _db.StudentEnrolments.AsNoTracking()
+            .AnyAsync(e => e.UniversityId == id, cancellationToken);
+        if (hasEnrolments)
+            throw new ConflictException("Cannot delete university while students are enrolled. Remove enrolments first.");
+
+        var hasUsers = await _userManager.Users.AsNoTracking()
+            .AnyAsync(u => u.UniversityId == id, cancellationToken);
+        if (hasUsers)
+            throw new ConflictException("Cannot delete university while users exist for it. Delete users first.");
+
+        await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
+        try
+        {
+            _db.ContentPublications.RemoveRange(_db.ContentPublications.Where(p => p.UniversityId == id));
+            _db.UniversityProgrammes.RemoveRange(_db.UniversityProgrammes.Where(up => up.UniversityId == id));
+            _db.Cohorts.RemoveRange(_db.Cohorts.Where(c => c.UniversityId == id));
+
+            _db.HospitalDepartments.RemoveRange(_db.HospitalDepartments.Where(x => x.UniversityId == id));
+            _db.Supervisors.RemoveRange(_db.Supervisors.Where(x => x.UniversityId == id));
+            _db.Rotations.RemoveRange(_db.Rotations.Where(x => x.UniversityId == id));
+            _db.RotationAssignments.RemoveRange(_db.RotationAssignments.Where(x => x.UniversityId == id));
+            _db.LogbookEntries.RemoveRange(_db.LogbookEntries.Where(x => x.UniversityId == id));
+            _db.SignOffEscalations.RemoveRange(_db.SignOffEscalations.Where(x => x.UniversityId == id));
+            _db.GradeSyncRequests.RemoveRange(_db.GradeSyncRequests.Where(x => x.UniversityId == id));
+            _db.SisRosterSyncRuns.RemoveRange(_db.SisRosterSyncRuns.Where(x => x.UniversityId == id));
+            _db.AttendanceRecords.RemoveRange(_db.AttendanceRecords.Where(x => x.UniversityId == id));
+            _db.HospitalAttendanceFeeds.RemoveRange(_db.HospitalAttendanceFeeds.Where(x => x.UniversityId == id));
+            _db.Notifications.RemoveRange(_db.Notifications.Where(x => x.UniversityId == id));
+            _db.CalendarEvents.RemoveRange(_db.CalendarEvents.Where(x => x.UniversityId == id));
+            _db.DiscussionThreads.RemoveRange(_db.DiscussionThreads.Where(x => x.UniversityId == id));
+            _db.DiscussionPosts.RemoveRange(_db.DiscussionPosts.Where(x => x.Thread.UniversityId == id));
+
+            _db.Universities.Remove(university);
+            await _db.SaveChangesAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+        }
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     private async Task<UniversityResponse> MapAsync(Guid id, CancellationToken cancellationToken)
