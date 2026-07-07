@@ -61,12 +61,22 @@ public class AuthService : IAuthService
         var token = _jwtTokenService.GenerateToken(
             user.Id, user.Email!, user.Role.ToString(), user.UniversityId, user.CohortId, user.StudentId, user.SupervisorId);
 
+        string? universityLogoUrl = null;
+        if (user.UniversityId.HasValue)
+        {
+            universityLogoUrl = await _db.Universities.AsNoTracking()
+                .Where(u => u.Id == user.UniversityId.Value)
+                .Select(u => u.LogoUrl)
+                .FirstOrDefaultAsync(cancellationToken);
+        }
+
         return new LoginResponse(
             token,
             user.Email!,
             user.FullName,
             user.Role.ToString(),
             user.UniversityId,
+            universityLogoUrl,
             user.CohortId,
             DateTime.UtcNow.AddMinutes(_jwtSettings.ExpiryMinutes));
     }

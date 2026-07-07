@@ -53,7 +53,7 @@ public class NotificationService : INotificationService
             {
                 var user = await _db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
                 if (user?.Email is not null)
-                    await _emailService.SendEmailAsync(user.Email, title, body, cancellationToken);
+                    await _emailService.SendEmailAsync(user.Email, title, body, cancellationToken: cancellationToken);
             }
         }
     }

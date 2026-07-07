@@ -186,7 +186,7 @@ public class ContentService : IContentService
         if (lesson.Status == ContentStatus.Published && _tenant.Role != UserRole.ApolloAdmin)
             throw new ConflictException("Published lesson assets can only be updated by Apollo Admin.");
 
-        var blobUrl = await _blobStorage.UploadAsync(fileStream, fileName, contentType, cancellationToken);
+        var blobUrl = await _blobStorage.UploadAsync(fileStream, fileName, contentType, "media/lessons", cancellationToken);
         var assetType = contentType.StartsWith("video/") ? AssetType.Video
             : contentType == "application/pdf" ? AssetType.Pdf : AssetType.Document;
 

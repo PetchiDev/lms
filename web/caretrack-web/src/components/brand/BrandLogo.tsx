@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { authStore } from '@/lib/auth-store'
 
 interface BrandLogoProps {
   variant?: 'light' | 'dark'
@@ -14,12 +15,14 @@ const sizes = {
 }
 
 export function BrandLogo({ variant = 'dark', size = 'md', showCareTrack = true, className }: BrandLogoProps) {
+  const auth = authStore.get()
+  const src = auth?.universityLogoUrl || '/apollo_logo.png'
   return (
     <div className={cn('flex items-center gap-3', className)}>
       <img
-        src="/apollo_logo.png"
-        alt="Apollo Hospitals"
-        className={cn(sizes[size], 'w-auto object-contain', variant === 'light' && 'brightness-0 invert')}
+        src={src}
+        alt="Logo"
+        className={cn(sizes[size], 'w-auto object-contain', variant === 'light' && !src.startsWith('http') && 'brightness-0 invert')}
       />
       {showCareTrack && (
         <div className="hidden sm:block">

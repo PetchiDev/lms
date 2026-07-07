@@ -30,17 +30,17 @@ public class CertificateService : ICertificateService
 
     public async Task<CertificateTemplateResponse> GetTemplateAsync(CancellationToken cancellationToken = default)
     {
-        EnsureApolloUser();
-        var template = await GetOrCreateTemplateAsync(cancellationToken);
+        var template = await GetOrCreateTemplateAsync(GetTemplateUniversityId(), cancellationToken);
         return MapTemplate(template);
     }
 
     public async Task<CertificateTemplateResponse> UpdateTemplateAsync(UpdateCertificateTemplateRequest request, CancellationToken cancellationToken = default)
     {
-        if (_tenant.Role != UserRole.ApolloAdmin)
-            throw new ForbiddenException("Only Apollo administrators can update the certificate template.");
+        if (_tenant.Role is not (UserRole.ApolloAdmin or UserRole.UniversityAdmin))
+            throw new ForbiddenException("Only administrators can update the certificate template.");
 
-        var template = await GetOrCreateTemplateAsync(cancellationToken);
+        var templateUniversityId = GetTemplateUniversityId(requireUniversity: _tenant.Role == UserRole.UniversityAdmin);
+        var template = await GetOrCreateTemplateAsync(templateUniversityId, cancellationToken);
         template.Title = request.Title.Trim();
         template.OrganizationName = request.OrganizationName.Trim();
         template.Tagline = request.Tagline.Trim();
@@ -67,16 +67,28 @@ public class CertificateService : ICertificateService
     {
         var studentId = GetStudentId();
 
-        return await _db.Certificates.AsNoTracking()
+        // Keep API stable even if legacy duplicate rows exist.
+        // EF translation for "group then project navigation property" can fail, so we dedupe in-memory.
+        var raw = await _db.Certificates.AsNoTracking()
             .Where(c => c.StudentId == studentId)
             .OrderByDescending(c => c.IssuedAt)
-            .Select(c => new CertificateResponse(
+            .Select(c => new
+            {
                 c.Id,
                 c.CertificateNumber,
-                c.Programme.Name,
+                ProgrammeId = c.ProgrammeId,
+                ProgrammeName = c.Programme.Name,
                 c.IssuedAt,
-                c.PdfBlobUrl))
+                c.PdfBlobUrl
+            })
             .ToListAsync(cancellationToken);
+
+        return raw
+            .GroupBy(x => x.ProgrammeId)
+            .Select(g => g.First()) // already ordered by issuedAt desc
+            .Select(c => new CertificateResponse(c.Id, c.CertificateNumber, c.ProgrammeName, c.IssuedAt, c.PdfBlobUrl))
+            .OrderByDescending(x => x.IssuedAt)
+            .ToList();
     }
 
     public async Task<CertificateResponse?> GenerateForCurrentStudentAsync(CancellationToken cancellationToken = default)
@@ -88,7 +100,9 @@ public class CertificateService : ICertificateService
             .FirstOrDefaultAsync(s => s.Id == studentId, cancellationToken)
             ?? throw new NotFoundException("Student not found.");
 
-        var programme = student.Enrolments.First().Cohort.Programme;
+        var enrolment = student.Enrolments.First();
+        var programme = enrolment.Cohort.Programme;
+        var universityId = enrolment.UniversityId;
 
         var existing = await _db.Certificates.AsNoTracking()
             .Include(c => c.Programme)
@@ -97,7 +111,17 @@ public class CertificateService : ICertificateService
         if (existing is not null)
             return new CertificateResponse(existing.Id, existing.CertificateNumber, existing.Programme.Name, existing.IssuedAt, existing.PdfBlobUrl);
 
-        var template = await GetOrCreateTemplateAsync(cancellationToken);
+        var template = await GetOrCreateTemplateAsync(universityId, cancellationToken);
+        var university = await _db.Universities.AsNoTracking()
+            .Where(u => u.Id == universityId)
+            .Select(u => new { u.Name, u.LogoUrl })
+            .FirstOrDefaultAsync(cancellationToken);
+
+        // Ensure Apollo branding never leaks into tenant certificates.
+        if (string.IsNullOrWhiteSpace(template.OrganizationName) && university is not null)
+            template.OrganizationName = university.Name;
+        if (string.IsNullOrWhiteSpace(template.LogoUrl) && university is not null)
+            template.LogoUrl = university.LogoUrl;
         var certNumber = $"CT-{DateTime.UtcNow:yyyy}-{Guid.NewGuid():N}"[..20].ToUpperInvariant();
         var issuedAt = DateTime.UtcNow;
         var studentName = $"{student.FirstName} {student.LastName}".Trim();
@@ -111,7 +135,7 @@ public class CertificateService : ICertificateService
 
         var pdfBytes = CertificatePdfRenderer.Render(renderContext, LoadImageBytes);
         using var pdfStream = new MemoryStream(pdfBytes);
-        var blobUrl = await _blobStorage.UploadAsync(pdfStream, $"{certNumber}.pdf", "application/pdf", cancellationToken);
+        var blobUrl = await _blobStorage.UploadAsync(pdfStream, $"{certNumber}.pdf", "application/pdf", $"media/certificates/{universityId}", cancellationToken);
 
         var certificate = new Certificate
         {
@@ -128,12 +152,37 @@ public class CertificateService : ICertificateService
         return new CertificateResponse(certificate.Id, certificate.CertificateNumber, programme.Name, certificate.IssuedAt, certificate.PdfBlobUrl);
     }
 
-    private async Task<CertificateTemplate> GetOrCreateTemplateAsync(CancellationToken cancellationToken)
+    private Guid? GetTemplateUniversityId(bool requireUniversity = false)
     {
-        var template = await _db.CertificateTemplates.FirstOrDefaultAsync(cancellationToken);
+        if (_tenant.Role is UserRole.ApolloAdmin or UserRole.ApolloFaculty)
+            return null;
+
+        if (requireUniversity && !_tenant.UniversityId.HasValue)
+            throw new ForbiddenException("University context required.");
+
+        return _tenant.UniversityId;
+    }
+
+    private async Task<CertificateTemplate> GetOrCreateTemplateAsync(Guid? universityId, CancellationToken cancellationToken)
+    {
+        var template = await _db.CertificateTemplates
+            .FirstOrDefaultAsync(t => t.UniversityId == universityId, cancellationToken);
         if (template is not null) return template;
 
-        template = new CertificateTemplate();
+        var defaults = universityId.HasValue
+            ? await _db.Universities.AsNoTracking()
+                .Where(u => u.Id == universityId.Value)
+                .Select(u => new { u.Name, u.LogoUrl })
+                .FirstOrDefaultAsync(cancellationToken)
+            : null;
+
+        template = new CertificateTemplate
+        {
+            UniversityId = universityId,
+            OrganizationName = defaults?.Name ?? "Institute",
+            LogoUrl = defaults?.LogoUrl
+        };
+
         _db.CertificateTemplates.Add(template);
         await _db.SaveChangesAsync(cancellationToken);
         return template;
@@ -162,24 +211,13 @@ public class CertificateService : ICertificateService
     private byte[]? LoadImageBytes(string? url)
     {
         if (string.IsNullOrWhiteSpace(url))
-            return File.Exists(_defaultLogoPath) ? File.ReadAllBytes(_defaultLogoPath) : null;
+            return null;
 
-        if (url.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
-        {
-            var path = Path.Combine(_uploadsPath, url.Replace("/uploads/", "", StringComparison.OrdinalIgnoreCase));
-            return File.Exists(path) ? File.ReadAllBytes(path) : null;
-        }
-
-        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.IsFile)
-            return File.Exists(uri.LocalPath) ? File.ReadAllBytes(uri.LocalPath) : null;
+        var bytes = _blobStorage.DownloadAsync(url).GetAwaiter().GetResult();
+        if (bytes is not null)
+            return bytes;
 
         return null;
-    }
-
-    private void EnsureApolloUser()
-    {
-        if (_tenant.Role is not (UserRole.ApolloAdmin or UserRole.ApolloFaculty))
-            throw new ForbiddenException("Apollo staff access only.");
     }
 
     private Guid GetStudentId()

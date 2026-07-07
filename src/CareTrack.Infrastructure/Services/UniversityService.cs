@@ -18,19 +18,22 @@ public class UniversityService : IUniversityService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly IEmailService _emailService;
     private readonly IContentService _contentService;
+    private readonly IBlobStorageService _blobStorage;
 
     public UniversityService(
         CareTrackDbContext db,
         ITenantContext tenant,
         UserManager<ApplicationUser> userManager,
         IEmailService emailService,
-        IContentService contentService)
+        IContentService contentService,
+        IBlobStorageService blobStorage)
     {
         _db = db;
         _tenant = tenant;
         _userManager = userManager;
         _emailService = emailService;
         _contentService = contentService;
+        _blobStorage = blobStorage;
     }
 
     public async Task<UniversityResponse> CreateAsync(CreateUniversityRequest request, CancellationToken cancellationToken = default)
@@ -203,7 +206,90 @@ public class UniversityService : IUniversityService
         };
 
         await _userManager.CreateAsync(user);
-        await _emailService.SendInviteEmailAsync(request.Email, user.FullName, token, cancellationToken);
+        await _emailService.SendInviteEmailAsync(request.Email, user.FullName, token, request.UniversityId, cancellationToken);
+    }
+
+    public async Task<UniversityResponse> UploadLogoAsync(
+        Guid id,
+        Stream fileStream,
+        string fileName,
+        string contentType,
+        CancellationToken cancellationToken = default)
+    {
+        if (!_tenant.IsApolloUser)
+            throw new ForbiddenException("Only Apollo users can upload university logos.");
+
+        var university = await _db.Universities.FindAsync([id], cancellationToken)
+            ?? throw new NotFoundException("University not found.");
+
+        if (!contentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase))
+            throw new Domain.Exceptions.ValidationException("Logo must be an image file.");
+
+        if (!string.IsNullOrWhiteSpace(university.LogoUrl))
+            await _blobStorage.DeleteAsync(university.LogoUrl, cancellationToken);
+
+        var cleanName = string.Concat(university.Name
+            .Trim()
+            .Select(ch => char.IsLetterOrDigit(ch) ? ch : '_'))
+            .Trim('_');
+        if (string.IsNullOrWhiteSpace(cleanName))
+            cleanName = "university";
+
+        var ext = Path.GetExtension(fileName);
+        var namedFile = $"{cleanName}{ext}";
+        // Duplicates allowed: the blob service still prefixes with a GUID.
+        university.LogoUrl = await _blobStorage.UploadAsync(fileStream, namedFile, contentType, $"media/universities/{cleanName}", cancellationToken);
+        university.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return await MapAsync(id, cancellationToken);
+    }
+
+    public async Task<UniversityEmailTemplateResponse> GetEmailTemplateAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        if (!_tenant.IsApolloUser)
+            _tenant.EnsureUniversityAccess(id);
+
+        var template = await _db.Universities.AsNoTracking()
+            .Where(u => u.Id == id)
+            .Select(u => new UniversityEmailTemplateResponse(
+                u.EmailInviteSubject,
+                u.EmailInviteBodyHtml,
+                u.EmailFromName,
+                u.EmailFromEmail))
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("University not found.");
+
+        return template;
+    }
+
+    public async Task<UniversityEmailTemplateResponse> UpdateEmailTemplateAsync(
+        Guid id,
+        UpdateUniversityEmailTemplateRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (_tenant.Role != UserRole.ApolloAdmin && _tenant.Role != UserRole.UniversityAdmin)
+            throw new ForbiddenException("Only admins can update email templates.");
+
+        if (_tenant.Role == UserRole.UniversityAdmin)
+            _tenant.EnsureUniversityAccess(id);
+
+        var university = await _db.Universities.FindAsync([id], cancellationToken)
+            ?? throw new NotFoundException("University not found.");
+
+        university.EmailInviteSubject = string.IsNullOrWhiteSpace(request.EmailInviteSubject) ? null : request.EmailInviteSubject.Trim();
+        university.EmailInviteBodyHtml = string.IsNullOrWhiteSpace(request.EmailInviteBodyHtml) ? null : request.EmailInviteBodyHtml.Trim();
+        university.EmailFromName = string.IsNullOrWhiteSpace(request.EmailFromName) ? null : request.EmailFromName.Trim();
+        university.EmailFromEmail = string.IsNullOrWhiteSpace(request.EmailFromEmail) ? null : request.EmailFromEmail.Trim();
+        university.UpdatedAt = DateTime.UtcNow;
+
+        await _db.SaveChangesAsync(cancellationToken);
+
+        return new UniversityEmailTemplateResponse(
+            university.EmailInviteSubject,
+            university.EmailInviteBodyHtml,
+            university.EmailFromName,
+            university.EmailFromEmail);
     }
 
     public async Task<UniversityAdminResponse> CreateUniversityAdminAsync(
@@ -245,6 +331,9 @@ public class UniversityService : IUniversityService
 
         var university = await _db.Universities.FindAsync([id], cancellationToken)
             ?? throw new NotFoundException("University not found.");
+
+        if (!string.IsNullOrWhiteSpace(university.LogoUrl))
+            await _blobStorage.DeleteAsync(university.LogoUrl, cancellationToken);
 
         var hasEnrolments = await _db.StudentEnrolments.AsNoTracking()
             .AnyAsync(e => e.UniversityId == id, cancellationToken);
@@ -298,19 +387,27 @@ public class UniversityService : IUniversityService
                 u.Id,
                 u.Name,
                 u.Domain,
+                u.LogoUrl,
                 u.IsActive,
                 u.CreatedAt,
+                u.EmailInviteSubject,
+                u.EmailInviteBodyHtml,
                 ProgrammeIds = u.UniversityProgrammes.Select(p => p.ProgrammeId).ToList()
             })
             .FirstOrDefaultAsync(cancellationToken)
             ?? throw new NotFoundException("University not found.");
 
+        var hasCustomEmail = !string.IsNullOrWhiteSpace(university.EmailInviteSubject)
+            || !string.IsNullOrWhiteSpace(university.EmailInviteBodyHtml);
+
         return new UniversityResponse(
             university.Id,
             university.Name,
             university.Domain,
+            university.LogoUrl,
             university.IsActive,
             university.CreatedAt,
-            university.ProgrammeIds);
+            university.ProgrammeIds,
+            hasCustomEmail);
     }
 }

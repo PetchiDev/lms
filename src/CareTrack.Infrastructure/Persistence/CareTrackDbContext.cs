@@ -70,6 +70,10 @@ public class CareTrackDbContext : IdentityDbContext<ApplicationUser>, ICareTrack
             e.HasIndex(x => x.Domain).IsUnique();
             e.Property(x => x.Name).HasMaxLength(200);
             e.Property(x => x.Domain).HasMaxLength(100);
+            e.Property(x => x.LogoUrl).HasMaxLength(2000);
+            e.Property(x => x.EmailInviteSubject).HasMaxLength(300);
+            e.Property(x => x.EmailFromName).HasMaxLength(200);
+            e.Property(x => x.EmailFromEmail).HasMaxLength(320);
             e.HasOne(x => x.IdpConfig).WithOne(x => x.University).HasForeignKey<TenantIdpConfig>(x => x.UniversityId);
         });
 
@@ -220,6 +224,7 @@ public class CareTrackDbContext : IdentityDbContext<ApplicationUser>, ICareTrack
         builder.Entity<Certificate>(e =>
         {
             e.HasIndex(x => x.CertificateNumber).IsUnique();
+            e.HasIndex(x => new { x.StudentId, x.ProgrammeId }).IsUnique();
             e.HasOne(x => x.Student).WithMany(s => s.Certificates).HasForeignKey(x => x.StudentId);
             e.HasOne(x => x.Programme).WithMany().HasForeignKey(x => x.ProgrammeId);
         });
@@ -228,6 +233,8 @@ public class CareTrackDbContext : IdentityDbContext<ApplicationUser>, ICareTrack
         {
             e.Property(x => x.Title).HasMaxLength(200);
             e.Property(x => x.OrganizationName).HasMaxLength(200);
+            e.HasIndex(x => x.UniversityId).IsUnique();
+            e.HasOne(x => x.University).WithMany().HasForeignKey(x => x.UniversityId).OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<HospitalDepartment>(e =>

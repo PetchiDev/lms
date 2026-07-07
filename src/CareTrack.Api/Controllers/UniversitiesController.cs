@@ -62,6 +62,37 @@ public class UniversitiesController : ControllerBase
         await _service.DeleteAsync(id, cancellationToken);
         return NoContent();
     }
+
+    /// <summary>Uploads the partner university logo (stored in Azure Blob).</summary>
+    [HttpPost("{id:guid}/logo")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
+    [ProducesResponseType(typeof(UniversityResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<UniversityResponse>> UploadLogo(Guid id, IFormFile file, CancellationToken cancellationToken)
+    {
+        if (file.Length == 0)
+            return BadRequest("Logo file is required.");
+
+        await using var stream = file.OpenReadStream();
+        var result = await _service.UploadLogoAsync(id, stream, file.FileName, file.ContentType, cancellationToken);
+        return Ok(result);
+    }
+
+    /// <summary>Gets the university-specific invite email template.</summary>
+    [HttpGet("{id:guid}/email-template")]
+    [ProducesResponseType(typeof(UniversityEmailTemplateResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<UniversityEmailTemplateResponse>> GetEmailTemplate(Guid id, CancellationToken cancellationToken)
+        => Ok(await _service.GetEmailTemplateAsync(id, cancellationToken));
+
+    /// <summary>Updates the university-specific invite email template.</summary>
+    [HttpPut("{id:guid}/email-template")]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.UniversityAdmin))]
+    [ProducesResponseType(typeof(UniversityEmailTemplateResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<UniversityEmailTemplateResponse>> UpdateEmailTemplate(
+        Guid id,
+        [FromBody] UpdateUniversityEmailTemplateRequest request,
+        CancellationToken cancellationToken)
+        => Ok(await _service.UpdateEmailTemplateAsync(id, request, cancellationToken));
 }
 
 [ApiController]

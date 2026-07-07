@@ -20,6 +20,10 @@ export const UNIVERSITY_PAGE_META: Record<string, UniversityPageHandle> = {
     title: 'Students',
     subtitle: 'Full roster with programme and cohort details',
   },
+  '/admin/certificates': {
+    title: 'Certificates',
+    subtitle: 'Configure your institute certificate branding',
+  },
   '/university/reports': {
     title: 'Cohort Analytics',
     subtitle: 'Student progress and compliance reports',

@@ -10,9 +10,23 @@ public record UniversityResponse(
     Guid Id,
     string Name,
     string Domain,
+    string? LogoUrl,
     bool IsActive,
     DateTime CreatedAt,
-    IReadOnlyList<Guid> ProgrammeIds);
+    IReadOnlyList<Guid> ProgrammeIds,
+    bool HasCustomEmailTemplate);
+
+public record UniversityEmailTemplateResponse(
+    string? EmailInviteSubject,
+    string? EmailInviteBodyHtml,
+    string? EmailFromName,
+    string? EmailFromEmail);
+
+public record UpdateUniversityEmailTemplateRequest(
+    string? EmailInviteSubject,
+    string? EmailInviteBodyHtml,
+    string? EmailFromName,
+    string? EmailFromEmail);
 
 public record CreateUniversityAdminRequest(
     string Email,

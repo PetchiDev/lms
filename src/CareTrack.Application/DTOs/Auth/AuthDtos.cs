@@ -8,6 +8,7 @@ public record LoginResponse(
     string FullName,
     string Role,
     Guid? UniversityId,
+    string? UniversityLogoUrl,
     Guid? CohortId,
     DateTime ExpiresAt);
 

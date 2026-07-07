@@ -3,6 +3,7 @@ using System;
 using CareTrack.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CareTrack.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CareTrackDbContext))]
-    partial class CareTrackDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707064049_UniversityBrandingAndEmailTemplates")]
+    partial class UniversityBrandingAndEmailTemplates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -188,8 +191,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProgrammeId");
 
-                    b.HasIndex("StudentId", "ProgrammeId")
-                        .IsUnique();
+                    b.HasIndex("StudentId");
 
                     b.ToTable("Certificates");
                 });
@@ -262,9 +264,6 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
-                    b.Property<Guid?>("UniversityId")
-                        .HasColumnType("uuid");
-
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -273,9 +272,6 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("UniversityId")
-                        .IsUnique();
 
                     b.ToTable("CertificateTemplates");
                 });
@@ -2173,16 +2169,6 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
                     b.Navigation("Programme");
 
                     b.Navigation("Student");
-                });
-
-            modelBuilder.Entity("CareTrack.Domain.Entities.CertificateTemplate", b =>
-                {
-                    b.HasOne("CareTrack.Domain.Entities.University", "University")
-                        .WithMany()
-                        .HasForeignKey("UniversityId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.Navigation("University");
                 });
 
             modelBuilder.Entity("CareTrack.Domain.Entities.Cohort", b =>

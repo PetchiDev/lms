@@ -3,6 +3,7 @@ using System;
 using CareTrack.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace CareTrack.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(CareTrackDbContext))]
-    partial class CareTrackDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707084939_TenantCertificateTemplates")]
+    partial class TenantCertificateTemplates
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -188,8 +191,7 @@ namespace CareTrack.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ProgrammeId");
 
-                    b.HasIndex("StudentId", "ProgrammeId")
-                        .IsUnique();
+                    b.HasIndex("StudentId");
 
                     b.ToTable("Certificates");
                 });

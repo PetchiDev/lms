@@ -24,14 +24,14 @@ public class CertificatesController : ControllerBase
 
     /// <summary>Gets the platform certificate template configuration.</summary>
     [HttpGet("template")]
-    [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.ApolloFaculty))]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.ApolloFaculty) + "," + nameof(UserRole.UniversityAdmin))]
     [ProducesResponseType(typeof(CertificateTemplateResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<CertificateTemplateResponse>> GetTemplate(CancellationToken cancellationToken)
         => Ok(await _service.GetTemplateAsync(cancellationToken));
 
     /// <summary>Updates the certificate template (Apollo admin only).</summary>
     [HttpPut("template")]
-    [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.UniversityAdmin))]
     [ProducesResponseType(typeof(CertificateTemplateResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<CertificateTemplateResponse>> UpdateTemplate(
         [FromBody] UpdateCertificateTemplateRequest request,
@@ -40,15 +40,20 @@ public class CertificatesController : ControllerBase
 
     /// <summary>Uploads an image asset for certificate template (logo or signature).</summary>
     [HttpPost("template/assets")]
-    [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
+    [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.UniversityAdmin))]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<ActionResult<object>> UploadAsset(IFormFile file, CancellationToken cancellationToken)
     {
         if (file.Length == 0)
             return BadRequest("File is required.");
 
+        var universityId = User.FindFirst("universityId")?.Value;
+        var folder = User.IsInRole(nameof(UserRole.UniversityAdmin))
+            ? $"media/certificates/{universityId ?? "tenant"}"
+            : "media/certificates/platform";
+
         await using var stream = file.OpenReadStream();
-        var url = await _blobStorage.UploadAsync(stream, file.FileName, file.ContentType, cancellationToken);
+        var url = await _blobStorage.UploadAsync(stream, file.FileName, file.ContentType, folder, cancellationToken);
         return Ok(new { url });
     }
 }

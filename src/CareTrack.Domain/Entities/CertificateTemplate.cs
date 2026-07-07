@@ -4,9 +4,10 @@ namespace CareTrack.Domain.Entities;
 
 public class CertificateTemplate : BaseEntity
 {
+    public Guid? UniversityId { get; set; }
     public string Title { get; set; } = "CERTIFICATE OF COMPLETION";
-    public string OrganizationName { get; set; } = "APOLLO HOSPITALS";
-    public string Tagline { get; set; } = "TOUCHING LIVES";
+    public string OrganizationName { get; set; } = "Institute";
+    public string Tagline { get; set; } = "Learning Platform";
     public string AwardedToLabel { get; set; } = "Awarded To";
     public string BodyText { get; set; } =
         "In recognition of successful completion of the training program: {ProgrammeName}, demonstrating proficiency and dedication during the course.";
@@ -21,4 +22,6 @@ public class CertificateTemplate : BaseEntity
     public string? RightSignatureImageUrl { get; set; }
     public string PrimaryColor { get; set; } = "#003366";
     public string AccentColor { get; set; } = "#C9A227";
+
+    public University? University { get; set; }
 }

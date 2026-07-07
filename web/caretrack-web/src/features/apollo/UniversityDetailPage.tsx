@@ -12,6 +12,7 @@ import {
 import gsap from 'gsap'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { api, getErrorMessage } from '@/lib/api-client'
+import { assetUrl } from '@/lib/asset-url'
 import { authStore } from '@/lib/auth-store'
 import { StatCard } from '@/components/dashboard/StatCard'
 import { ProgressRing } from '@/components/dashboard/ProgressRing'
@@ -47,6 +48,27 @@ export function UniversityDetailPage() {
   const [adminLastName, setAdminLastName] = useState('')
   const [adminMessage, setAdminMessage] = useState<string | null>(null)
   const [createdAdmin, setCreatedAdmin] = useState<{ email: string; password: string } | null>(null)
+  const [logoMessage, setLogoMessage] = useState<string | null>(null)
+  const [emailSubject, setEmailSubject] = useState('')
+  const [emailBody, setEmailBody] = useState('')
+  const [emailFromName, setEmailFromName] = useState('')
+  const [emailFromEmail, setEmailFromEmail] = useState('')
+  const [emailMessage, setEmailMessage] = useState<string | null>(null)
+
+  const emailTemplate = useQuery({
+    queryKey: ['university-email-template', universityId],
+    queryFn: async () => (await api.get(`/universities/${universityId}/email-template`)).data,
+    enabled: !!universityId,
+  })
+
+  useEffect(() => {
+    if (emailTemplate.data) {
+      setEmailSubject(emailTemplate.data.emailInviteSubject ?? '')
+      setEmailBody(emailTemplate.data.emailInviteBodyHtml ?? '')
+      setEmailFromName(emailTemplate.data.emailFromName ?? '')
+      setEmailFromEmail(emailTemplate.data.emailFromEmail ?? '')
+    }
+  }, [emailTemplate.data])
 
   const university = useQuery({
     queryKey: ['university', universityId],
@@ -73,6 +95,37 @@ export function UniversityDetailPage() {
       setProgrammeMessage('Programmes linked successfully.')
     },
     onError: (err) => setProgrammeMessage(getErrorMessage(err)),
+  })
+
+  const uploadLogo = useMutation({
+    mutationFn: async (file: File) => {
+      const form = new FormData()
+      form.append('file', file)
+      return api.post(`/universities/${universityId}/logo`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['university', universityId] })
+      setLogoMessage('Logo uploaded successfully.')
+    },
+    onError: (err) => setLogoMessage(getErrorMessage(err)),
+  })
+
+  const saveEmailTemplate = useMutation({
+    mutationFn: async () =>
+      api.put(`/universities/${universityId}/email-template`, {
+        emailInviteSubject: emailSubject || null,
+        emailInviteBodyHtml: emailBody || null,
+        emailFromName: emailFromName || null,
+        emailFromEmail: emailFromEmail || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['university-email-template', universityId] })
+      queryClient.invalidateQueries({ queryKey: ['university', universityId] })
+      setEmailMessage('Email template saved.')
+    },
+    onError: (err) => setEmailMessage(getErrorMessage(err)),
   })
 
   const createAdmin = useMutation({
@@ -172,6 +225,13 @@ export function UniversityDetailPage() {
               {university.data.isActive ? 'Active partner' : 'Inactive'}
             </span>
           )}
+          {assetUrl(university.data?.logoUrl) && (
+            <img
+              src={assetUrl(university.data?.logoUrl)!}
+              alt=""
+              className="h-10 object-contain"
+            />
+          )}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -214,6 +274,7 @@ export function UniversityDetailPage() {
               <TabsTrigger value="students">Students ({totalStudents})</TabsTrigger>
               <TabsTrigger value="cohorts">Cohorts ({uniCohorts.length})</TabsTrigger>
               <TabsTrigger value="programmes">Programmes ({linkedProgrammes.length})</TabsTrigger>
+              <TabsTrigger value="branding">Branding & email</TabsTrigger>
               <TabsTrigger value="admin">College admin</TabsTrigger>
             </TabsList>
 
@@ -329,6 +390,73 @@ export function UniversityDetailPage() {
                     {programmeMessage}
                   </p>
                 )}
+              </div>
+            </TabsContent>
+
+            <TabsContent value="branding">
+              <div className="grid gap-8 lg:grid-cols-2">
+                <div>
+                  <h3 className="mb-3 font-semibold text-slate-900">University logo</h3>
+                  <p className="mb-4 text-sm text-slate-600">Logo is stored in Azure Blob and shown in invite emails.</p>
+                  {assetUrl(university.data?.logoUrl) && (
+                    <img
+                      src={assetUrl(university.data?.logoUrl)!}
+                      alt="University logo"
+                      className="mb-4 h-16 object-contain"
+                    />
+                  )}
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) uploadLogo.mutate(file)
+                    }}
+                  />
+                  {logoMessage && (
+                    <p className={`mt-2 text-sm ${logoMessage.includes('success') ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {logoMessage}
+                    </p>
+                  )}
+                </div>
+                <div>
+                  <h3 className="mb-3 font-semibold text-slate-900">Invite email template</h3>
+                  <p className="mb-4 text-sm text-slate-600">
+                    Customize emails for this university. Placeholders: {'{{FullName}}'}, {'{{ActivationUrl}}'}, {'{{UniversityName}}'}, {'{{LogoUrl}}'}
+                  </p>
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>From name</Label>
+                      <Input value={emailFromName} onChange={(e) => setEmailFromName(e.target.value)} placeholder="SRM University" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>From email</Label>
+                      <Input value={emailFromEmail} onChange={(e) => setEmailFromEmail(e.target.value)} placeholder="noreply@srm.edu" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Subject</Label>
+                      <Input value={emailSubject} onChange={(e) => setEmailSubject(e.target.value)} placeholder="Activate your account" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>HTML body</Label>
+                      <textarea
+                        className="min-h-[160px] w-full rounded-xl border border-slate-200 p-3 text-sm"
+                        value={emailBody}
+                        onChange={(e) => setEmailBody(e.target.value)}
+                        placeholder="<p>Hi {{FullName}}, welcome to {{UniversityName}}...</p>"
+                      />
+                    </div>
+                    <Button className="bg-[#2081A1]" onClick={() => saveEmailTemplate.mutate()} disabled={saveEmailTemplate.isPending}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Save email template
+                    </Button>
+                    {emailMessage && (
+                      <p className={`text-sm ${emailMessage.includes('saved') ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {emailMessage}
+                      </p>
+                    )}
+                  </div>
+                </div>
               </div>
             </TabsContent>
 

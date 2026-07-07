@@ -15,6 +15,7 @@ import { UniversityDashboard } from '@/features/university/UniversityDashboard'
 import { ProgrammeAssignmentPage } from '@/features/university/ProgrammeAssignmentPage'
 import { UniversityEnrolmentPage } from '@/features/university/UniversityEnrolmentPage'
 import { UniversityStudentsPage } from '@/features/university/UniversityStudentsPage'
+import { UniversityCertificateTemplatePage } from '@/features/university/UniversityCertificateTemplatePage'
 import { StudentDashboard } from '@/features/student/StudentDashboard'
 import { ClinicalRotationPage } from '@/features/student/ClinicalRotationPage'
 import { CurriculumPage, LiveClassesPage, AssessmentsPage } from '@/features/student/StudentSubPages'
@@ -62,6 +63,7 @@ export function AppRouter() {
               <Route path="/admin/programmes" element={<ProgrammeAssignmentPage />} />
               <Route path="/admin/enrolment" element={<UniversityEnrolmentPage />} />
               <Route path="/admin/students" element={<UniversityStudentsPage />} />
+              <Route path="/admin/certificates" element={<UniversityCertificateTemplatePage />} />
               <Route path="/university/reports" element={<UniversityReportsPage />} />
             </Route>
             <Route path="/university" element={<Navigate to="/admin" replace />} />

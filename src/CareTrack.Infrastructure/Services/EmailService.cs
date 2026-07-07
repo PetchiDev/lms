@@ -1,4 +1,6 @@
 using CareTrack.Application.Interfaces;
+using CareTrack.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using SendGrid;
@@ -19,30 +21,79 @@ public class EmailService : IEmailService
     private readonly SendGridSettings _settings;
     private readonly ILogger<EmailService> _logger;
     private readonly string _frontendBaseUrl;
+    private readonly CareTrackDbContext _db;
+
+    private const string DefaultInviteSubject = "Activate your CareTrack account";
 
     public EmailService(
         IOptions<SendGridSettings> settings,
         IOptions<AppSettings> appSettings,
+        CareTrackDbContext db,
         ILogger<EmailService> logger)
     {
         _settings = settings.Value;
         _logger = logger;
+        _db = db;
         _frontendBaseUrl = appSettings.Value.FrontendBaseUrl.TrimEnd('/');
     }
 
-    public Task SendInviteEmailAsync(string email, string fullName, string activationToken, CancellationToken cancellationToken = default)
+    public async Task SendInviteEmailAsync(
+        string email,
+        string fullName,
+        string activationToken,
+        Guid? universityId = null,
+        CancellationToken cancellationToken = default)
     {
-        var activationUrl = $"{_frontendBaseUrl}/activate?token={Uri.EscapeDataString(activationToken)}";
-        var html = $"""
-            <p>Hi {fullName},</p>
-            <p>You have been invited to CareTrack LMS. Click the link below to activate your account (valid 72 hours):</p>
-            <p><a href="{activationUrl}">Activate account</a></p>
-            <p>If the button does not work, copy this URL:<br/>{activationUrl}</p>
-            """;
-        return SendEmailAsync(email, "Activate your CareTrack account", html, cancellationToken);
+        var activationUrl = $"{_frontendBaseUrl}/#/activate?token={Uri.EscapeDataString(activationToken)}";
+        var subject = DefaultInviteSubject;
+        var html = BuildDefaultInviteHtml(fullName, activationUrl);
+        string? fromEmail = null;
+        string? fromName = null;
+
+        if (universityId.HasValue)
+        {
+            var uni = await _db.Universities.AsNoTracking()
+                .Where(u => u.Id == universityId.Value)
+                .Select(u => new
+                {
+                    u.Name,
+                    u.LogoUrl,
+                    u.EmailInviteSubject,
+                    u.EmailInviteBodyHtml,
+                    u.EmailFromEmail,
+                    u.EmailFromName
+                })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (uni is not null)
+            {
+                fromEmail = uni.EmailFromEmail;
+                fromName = uni.EmailFromName;
+
+                if (!string.IsNullOrWhiteSpace(uni.EmailInviteSubject))
+                    subject = uni.EmailInviteSubject;
+
+                if (!string.IsNullOrWhiteSpace(uni.EmailInviteBodyHtml))
+                {
+                    html = RenderTemplate(uni.EmailInviteBodyHtml, fullName, activationUrl, uni.Name, uni.LogoUrl);
+                }
+                else if (!string.IsNullOrWhiteSpace(uni.Name))
+                {
+                    html = BuildDefaultInviteHtml(fullName, activationUrl, uni.Name, uni.LogoUrl);
+                }
+            }
+        }
+
+        await SendEmailAsync(email, subject, html, fromEmail, fromName, cancellationToken);
     }
 
-    public async Task SendEmailAsync(string email, string subject, string body, CancellationToken cancellationToken = default)
+    public async Task SendEmailAsync(
+        string email,
+        string subject,
+        string body,
+        string? fromEmail = null,
+        string? fromName = null,
+        CancellationToken cancellationToken = default)
     {
         if (!_settings.Enabled || string.IsNullOrWhiteSpace(_settings.ApiKey))
         {
@@ -51,7 +102,7 @@ public class EmailService : IEmailService
         }
 
         var client = new SendGridClient(_settings.ApiKey);
-        var from = new EmailAddress(_settings.FromEmail, _settings.FromName);
+        var from = new EmailAddress(fromEmail ?? _settings.FromEmail, fromName ?? _settings.FromName);
         var to = new EmailAddress(email);
         var isHtml = body.Contains('<') && body.Contains('>');
         var msg = isHtml
@@ -67,6 +118,40 @@ public class EmailService : IEmailService
         }
 
         _logger.LogInformation("Email sent via SendGrid to {Email}: {Subject}", email, subject);
+    }
+
+    private static string RenderTemplate(
+        string template,
+        string fullName,
+        string activationUrl,
+        string universityName,
+        string? logoUrl)
+    {
+        return template
+            .Replace("{{FullName}}", fullName, StringComparison.OrdinalIgnoreCase)
+            .Replace("{{ActivationUrl}}", activationUrl, StringComparison.OrdinalIgnoreCase)
+            .Replace("{{UniversityName}}", universityName, StringComparison.OrdinalIgnoreCase)
+            .Replace("{{LogoUrl}}", logoUrl ?? string.Empty, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string BuildDefaultInviteHtml(
+        string fullName,
+        string activationUrl,
+        string? universityName = null,
+        string? logoUrl = null)
+    {
+        var org = string.IsNullOrWhiteSpace(universityName) ? "CareTrack LMS" : universityName;
+        var logoBlock = string.IsNullOrWhiteSpace(logoUrl)
+            ? string.Empty
+            : $"""<p><img src="{logoUrl}" alt="{org}" style="max-height:48px"/></p>""";
+
+        return $"""
+            {logoBlock}
+            <p>Hi {fullName},</p>
+            <p>You have been invited to {org}. Click the link below to activate your account (valid 72 hours):</p>
+            <p><a href="{activationUrl}">Activate account</a></p>
+            <p>If the button does not work, copy this URL:<br/>{activationUrl}</p>
+            """;
     }
 
     private static string StripHtml(string html) =>

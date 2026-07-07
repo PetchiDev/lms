@@ -1,4 +1,6 @@
 using CareTrack.Domain.Entities;
+using CareTrack.Domain.Enums;
+using CareTrack.Application.Interfaces;
 using CareTrack.Infrastructure.Identity;
 using CareTrack.Infrastructure.Persistence;
 using Microsoft.AspNetCore.Identity;
@@ -13,6 +15,7 @@ public static class DataSeeder
     {
         var db = services.GetRequiredService<CareTrackDbContext>();
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+        var blobStorage = services.GetRequiredService<IBlobStorageService>();
 
         if (await userManager.FindByEmailAsync("admin@apollo.edu") is null)
         {
@@ -42,306 +45,202 @@ public static class DataSeeder
             }, "Faculty@123");
         }
 
-        if (!await db.Programmes.AnyAsync())
+        await SeedProgrammeCatalogueAsync(db, blobStorage);
+        await SeedModuleQuizzesAsync(db);
+    }
+
+    private static async Task SeedProgrammeCatalogueAsync(CareTrackDbContext db, IBlobStorageService blobStorage)
+    {
+        // This seeding is intended for a clean database (after purge).
+        if (await db.Programmes.AsNoTracking().AnyAsync())
+            return;
+
+        var programmeSpecs = new[]
         {
-            var programme = new Programme
+            new ProgrammeSpec("B.AOTT", "Anaesthesia & OT Technology", 4, null),
+            new ProgrammeSpec("B.DTT", "Dialysis Therapy Technology", 4, null),
+            new ProgrammeSpec("BPT", "Bachelor of Physiotherapy", 4, "4.5 Years"),
+            new ProgrammeSpec("B.PA", "Physician Associates", 4, null),
+            new ProgrammeSpec("B.MLS", "Medical Laboratory Science", 4, null),
+            new ProgrammeSpec("B.RT", "Respiratory Therapy", 4, null),
+            new ProgrammeSpec("B.EMT", "Emergency Medical Technologist", 4, null),
+            new ProgrammeSpec("B.Optom", "Bachelor of Optometry", 4, null),
+            new ProgrammeSpec("B.CCT", "Critical Care Technology", 4, null),
+            new ProgrammeSpec("B.CVT", "Cardiovascular Technology", 4, null),
+            new ProgrammeSpec("B.BS", "Biomedical Science", 4, null),
+            new ProgrammeSpec("B.MRIT", "Medical Radiology & Imaging Technology", 4, null),
+            new ProgrammeSpec("MBA", "Health Service Management", 4, null),
+            new ProgrammeSpec("BScNMT", "Nuclear Medicine Technology", 4, null),
+            new ProgrammeSpec("B.ND", "Nutrition & Dietetics – Honours", 4, null),
+        };
+
+        // Upload the sample PDF once to blob and reuse the URL for all lesson assets.
+        var assetBlobUrl = await EnsureSamplePdfUploadedAsync(blobStorage);
+
+        var programmes = programmeSpecs.Select(spec => new Programme
+        {
+            Code = spec.Code,
+            Name = spec.Name,
+            Description = spec.DurationLabel is null ? $"{spec.Name} programme" : $"{spec.Name} programme ({spec.DurationLabel})",
+            DurationYears = spec.DurationYears
+        }).ToList();
+
+        db.Programmes.AddRange(programmes);
+        await db.SaveChangesAsync();
+
+        var years = new List<ProgrammeYear>();
+        foreach (var p in programmes)
+            for (var y = 1; y <= 4; y++)
+                years.Add(new ProgrammeYear { ProgrammeId = p.Id, YearNumber = y, Name = $"Year {y}" });
+        db.ProgrammeYears.AddRange(years);
+        await db.SaveChangesAsync();
+
+        var semesters = new List<Semester>();
+        foreach (var y in years)
+            for (var s = 1; s <= 2; s++)
+                semesters.Add(new Semester { ProgrammeYearId = y.Id, SemesterNumber = s, Name = $"Semester {s}" });
+        db.Semesters.AddRange(semesters);
+        await db.SaveChangesAsync();
+
+        var modules = new List<Module>();
+        foreach (var p in programmes)
+        {
+            foreach (var y in years.Where(x => x.ProgrammeId == p.Id))
             {
-                Name = "B.Sc Allied Health",
-                Code = "BSC-AH",
-                Description = "Allied Health Sciences Programme",
-                DurationYears = 3
-            };
-
-            for (var year = 1; year <= 3; year++)
-            {
-                var programmeYear = new ProgrammeYear
+                foreach (var s in semesters.Where(x => x.ProgrammeYearId == y.Id))
                 {
-                    YearNumber = year,
-                    Name = $"Year {year}"
-                };
-
-                for (var sem = 1; sem <= 2; sem++)
-                {
-                    var semester = new Semester
+                    modules.Add(new Module
                     {
-                        SemesterNumber = sem,
-                        Name = $"Semester {sem}"
-                    };
-
-                    semester.Modules.Add(new Module
-                    {
-                        Title = year == 1 && sem == 1 ? "Cardiovascular Assessment" : $"Module Y{year}S{sem}",
-                        Description = "Core module content",
+                        SemesterId = s.Id,
+                        Title = $"{p.Code} Y{y.YearNumber}S{s.SemesterNumber}",
+                        Description = "Seeded module content",
                         SortOrder = 1
                     });
-
-                    programmeYear.Semesters.Add(semester);
                 }
-
-                programme.Years.Add(programmeYear);
             }
-
-            db.Programmes.Add(programme);
-            await db.SaveChangesAsync();
         }
+        db.Modules.AddRange(modules);
+        await db.SaveChangesAsync();
 
-        if (!await db.Universities.AnyAsync(u => u.Domain == "meridian.edu"))
+        var lessons = new List<Lesson>();
+        foreach (var m in modules)
         {
-            var programme = await db.Programmes.OrderBy(p => p.Code).FirstAsync();
-            var university = new University
+            lessons.Add(new Lesson
             {
-                Name = "Meridian University",
-                Domain = "meridian.edu"
-            };
-            db.Universities.Add(university);
-
-            db.UniversityProgrammes.Add(new UniversityProgramme
-            {
-                University = university,
-                Programme = programme
+                ModuleId = m.Id,
+                Title = "Sample PDF Lesson",
+                Description = "Seeded lesson content (PDF).",
+                Status = ContentStatus.Published,
+                SortOrder = 1,
+                CreatedByUserId = null
             });
-
-            var cohort = new Cohort
-            {
-                University = university,
-                Programme = programme,
-                Name = "2026 Intake",
-                IntakeYear = 2026,
-                CurrentYear = 1,
-                CurrentSemester = 1
-            };
-            db.Cohorts.Add(cohort);
-            await db.SaveChangesAsync();
-
-            if (await userManager.FindByEmailAsync("admin@meridian.edu") is null)
-            {
-                await userManager.CreateAsync(new ApplicationUser
-                {
-                    UserName = "admin@meridian.edu",
-                    Email = "admin@meridian.edu",
-                    FirstName = "Meridian",
-                    LastName = "Admin",
-                    Role = Domain.Enums.UserRole.UniversityAdmin,
-                    UniversityId = university.Id,
-                    EmailConfirmed = true,
-                    Status = Domain.Enums.EnrolmentStatus.Active
-                }, "UnivAdmin@123");
-            }
-
-            // Seed quiz for first module
-            var firstModule = await db.Modules.OrderBy(m => m.CreatedAt).FirstOrDefaultAsync();
-            if (firstModule is not null && !await db.Quizzes.AnyAsync())
-            {
-                var quiz = new Quiz
-                {
-                    ModuleId = firstModule.Id,
-                    Title = $"{firstModule.Title} Assessment",
-                    PassPercentage = 60,
-                    TimeLimitMinutes = 30
-                };
-
-                var q1 = new QuizQuestion
-                {
-                    QuestionText = "What is the primary purpose of cardiovascular assessment?",
-                    SortOrder = 1,
-                    Options =
-                    [
-                        new QuizOption { OptionText = "Evaluate heart and blood vessel function", IsCorrect = true, SortOrder = 1 },
-                        new QuizOption { OptionText = "Measure bone density", IsCorrect = false, SortOrder = 2 },
-                        new QuizOption { OptionText = "Assess lung capacity only", IsCorrect = false, SortOrder = 3 }
-                    ]
-                };
-
-                quiz.Questions.Add(q1);
-                db.Quizzes.Add(quiz);
-                await db.SaveChangesAsync();
-            }
         }
+        db.Lessons.AddRange(lessons);
+        await db.SaveChangesAsync();
 
-        await SeedPhase2Async(db, userManager);
+        db.LessonAssets.AddRange(lessons.Select(l => new LessonAsset
+        {
+            LessonId = l.Id,
+            AssetType = AssetType.Pdf,
+            FileName = "SampleNursingPDF.pdf",
+            BlobUrl = assetBlobUrl,
+            ContentType = "application/pdf",
+            FileSizeBytes = 0
+        }));
+
+        db.ContentPublications.AddRange(lessons.Select(l => new ContentPublication
+        {
+            LessonId = l.Id,
+            UniversityId = null,
+            PublishedByUserId = null
+        }));
+
+        await db.SaveChangesAsync();
     }
 
-    private static async Task SeedPhase2Async(CareTrackDbContext db, UserManager<ApplicationUser> userManager)
+    private static async Task SaveChangesWithRetryAsync(CareTrackDbContext db)
     {
-        var university = await db.Universities.IgnoreQueryFilters().FirstOrDefaultAsync(u => u.Domain == "meridian.edu");
-        if (university is null) return;
-
-        if (!await db.TenantIdpConfigs.IgnoreQueryFilters().AnyAsync(c => c.UniversityId == university.Id))
+        const int maxAttempts = 3;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            db.TenantIdpConfigs.Add(new TenantIdpConfig
+            try
             {
-                UniversityId = university.Id,
-                ProviderType = Domain.Enums.IdpProviderType.Saml,
-                MetadataUrl = "https://PLACEHOLDER-meridian-idp.edu/saml/metadata",
-                ClientId = "PLACEHOLDER_MERIDIAN_CLIENT_ID",
-                ClientSecretPlaceholder = "PLACEHOLDER_MERIDIAN_CLIENT_SECRET",
-                IsEnabled = true
-            });
-        }
-
-        HospitalDepartment? cardiology = null;
-        if (!await db.HospitalDepartments.IgnoreQueryFilters().AnyAsync(d => d.UniversityId == university.Id))
-        {
-            cardiology = new HospitalDepartment
-            {
-                UniversityId = university.Id,
-                Name = "Cardiology",
-                Code = "CARD",
-                CapacityPerMonth = 40
-            };
-            db.HospitalDepartments.Add(cardiology);
-            await db.SaveChangesAsync();
-        }
-        else
-        {
-            cardiology = await db.HospitalDepartments.IgnoreQueryFilters().FirstAsync(d => d.UniversityId == university.Id);
-        }
-
-        ApplicationUser? supervisorUser = await userManager.FindByEmailAsync("supervisor@meridian.edu");
-        Supervisor? supervisor = null;
-        if (supervisorUser is null)
-        {
-            supervisorUser = new ApplicationUser
-            {
-                UserName = "supervisor@meridian.edu",
-                Email = "supervisor@meridian.edu",
-                FirstName = "Dr. Priya",
-                LastName = "Sharma",
-                Role = Domain.Enums.UserRole.Supervisor,
-                UniversityId = university.Id,
-                EmailConfirmed = true,
-                Status = Domain.Enums.EnrolmentStatus.Active
-            };
-            await userManager.CreateAsync(supervisorUser, "Supervisor@123");
-
-            supervisor = new Supervisor
-            {
-                UniversityId = university.Id,
-                UserId = supervisorUser.Id,
-                HospitalDepartmentId = cardiology.Id,
-                Title = "Clinical Supervisor"
-            };
-            db.Supervisors.Add(supervisor);
-            await db.SaveChangesAsync();
-            supervisorUser.SupervisorId = supervisor.Id;
-            await userManager.UpdateAsync(supervisorUser);
-        }
-        else
-        {
-            supervisor = await db.Supervisors.IgnoreQueryFilters().FirstOrDefaultAsync(s => s.UserId == supervisorUser.Id);
-        }
-
-        var cohort = await db.Cohorts.IgnoreQueryFilters().FirstAsync(c => c.UniversityId == university.Id);
-        Student? student = null;
-        if (!await db.Students.AnyAsync())
-        {
-            var studentUser = await userManager.FindByEmailAsync("student@meridian.edu");
-            if (studentUser is null)
-            {
-                studentUser = new ApplicationUser
-                {
-                    UserName = "student@meridian.edu",
-                    Email = "student@meridian.edu",
-                    FirstName = "Arjun",
-                    LastName = "Kumar",
-                    Role = Domain.Enums.UserRole.Student,
-                    UniversityId = university.Id,
-                    CohortId = cohort.Id,
-                    EmailConfirmed = true,
-                    Status = Domain.Enums.EnrolmentStatus.Active
-                };
-                await userManager.CreateAsync(studentUser, "Student@123");
+                await db.SaveChangesAsync();
+                return;
             }
-
-            student = new Student
+            catch (DbUpdateConcurrencyException) when (attempt < maxAttempts)
             {
-                UserId = studentUser.Id,
-                FirstName = "Arjun",
-                LastName = "Kumar"
+                // Very rare during seeding; retry to avoid startup crash.
+                await Task.Delay(200 * attempt);
+            }
+        }
+    }
+
+    private static async Task SeedModuleQuizzesAsync(CareTrackDbContext db)
+    {
+        var moduleIds = await db.Modules.AsNoTracking().Select(m => m.Id).ToListAsync();
+        foreach (var moduleId in moduleIds)
+        {
+            if (await db.Quizzes.AnyAsync(q => q.ModuleId == moduleId))
+                continue;
+
+            var moduleTitle = await db.Modules.AsNoTracking().Where(m => m.Id == moduleId).Select(m => m.Title).FirstAsync();
+            var quiz = new Quiz
+            {
+                ModuleId = moduleId,
+                Title = $"{moduleTitle} Assessment",
+                PassPercentage = 60,
+                TimeLimitMinutes = 30
             };
-            db.Students.Add(student);
-            await db.SaveChangesAsync();
 
-            studentUser.StudentId = student.Id;
-            await userManager.UpdateAsync(studentUser);
-
-            db.StudentEnrolments.Add(new StudentEnrolment
+            quiz.Questions.Add(new QuizQuestion
             {
-                UniversityId = university.Id,
-                StudentId = student.Id,
-                CohortId = cohort.Id,
-                Status = Domain.Enums.EnrolmentStatus.Active
+                QuestionText = "Which is the correct statement?",
+                SortOrder = 1,
+                Options =
+                [
+                    new QuizOption { OptionText = "Option A (Correct)", IsCorrect = true, SortOrder = 1 },
+                    new QuizOption { OptionText = "Option B", IsCorrect = false, SortOrder = 2 },
+                    new QuizOption { OptionText = "Option C", IsCorrect = false, SortOrder = 3 },
+                    new QuizOption { OptionText = "Option D", IsCorrect = false, SortOrder = 4 }
+                ]
             });
-            await db.SaveChangesAsync();
-        }
-        else
-        {
-            student = await db.Students.FirstAsync();
-        }
 
-        if (!await db.Rotations.IgnoreQueryFilters().AnyAsync(r => r.UniversityId == university.Id))
-        {
-            var rotation = new Rotation
+            quiz.Questions.Add(new QuizQuestion
             {
-                UniversityId = university.Id,
-                HospitalDepartmentId = cardiology.Id,
-                CohortId = cohort.Id,
-                Name = "Cardiology Posting — Batch A",
-                StartDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-14)),
-                EndDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(28)),
-                WeeksDuration = 6,
-                RequiredProcedureCount = 5,
-                Status = Domain.Enums.RotationStatus.Active
-            };
-            db.Rotations.Add(rotation);
-            await db.SaveChangesAsync();
-
-            var assignment = new RotationAssignment
-            {
-                UniversityId = university.Id,
-                RotationId = rotation.Id,
-                StudentId = student!.Id,
-                Status = Domain.Enums.RotationStatus.Active,
-                AttendancePercent = 88
-            };
-            db.RotationAssignments.Add(assignment);
-            await db.SaveChangesAsync();
-
-            db.LogbookEntries.Add(new LogbookEntry
-            {
-                UniversityId = university.Id,
-                RotationAssignmentId = assignment.Id,
-                StudentId = student.Id,
-                EntryDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1)),
-                Procedure = "ECG Interpretation",
-                PatientCount = 3,
-                Notes = "Observed and assisted with 12-lead ECG placement",
-                Location = "Cardiology Ward — Block B",
-                Status = Domain.Enums.LogbookEntryStatus.PendingSignoff,
-                SubmittedAt = DateTime.UtcNow.AddHours(-6)
+                QuestionText = "Pick the best answer.",
+                SortOrder = 2,
+                Options =
+                [
+                    new QuizOption { OptionText = "Best (Correct)", IsCorrect = true, SortOrder = 1 },
+                    new QuizOption { OptionText = "Wrong", IsCorrect = false, SortOrder = 2 },
+                    new QuizOption { OptionText = "Wrong", IsCorrect = false, SortOrder = 3 },
+                    new QuizOption { OptionText = "Wrong", IsCorrect = false, SortOrder = 4 }
+                ]
             });
-            await db.SaveChangesAsync();
-        }
 
-        if (!await db.CalendarEvents.IgnoreQueryFilters().AnyAsync(e => e.UniversityId == university.Id))
-        {
-            var liveClass = new CalendarEvent
-            {
-                UniversityId = university.Id,
-                CohortId = cohort.Id,
-                Title = "Live class — Cardiovascular intro",
-                Description = "Interactive session with faculty",
-                StartAt = DateTime.UtcNow.Date.AddHours(9),
-                EndAt = DateTime.UtcNow.Date.AddHours(10),
-                EventType = Domain.Enums.CalendarEventType.LiveClass,
-                LiveClassSession = new LiveClassSession
-                {
-                    JoinUrl = "https://PLACEHOLDER-teams.microsoft.com/meet/caretrack-demo",
-                    MinAttendanceMinutes = 45
-                }
-            };
-            db.CalendarEvents.Add(liveClass);
+            db.Quizzes.Add(quiz);
             await db.SaveChangesAsync();
         }
     }
+
+    private static async Task<string> EnsureSamplePdfUploadedAsync(IBlobStorageService blobStorage)
+    {
+        // Try to locate the sample PDF in repo or API content root.
+        var cwd = Directory.GetCurrentDirectory();
+        var candidates = new[]
+        {
+            Path.Combine(cwd, "src", "CareTrack.Api", "uploads", "SampleNursingPDF.pdf"),
+            Path.Combine(cwd, "uploads", "SampleNursingPDF.pdf"),
+            Path.Combine(cwd, "src", "CareTrack.Api", "uploads", "SampleNursingPDF.pdf".ToLowerInvariant()),
+        };
+
+        var path = candidates.FirstOrDefault(File.Exists)
+            ?? throw new FileNotFoundException("Sample PDF not found.", candidates[0]);
+
+        await using var stream = File.OpenRead(path);
+        return await blobStorage.UploadAsync(stream, "SampleNursingPDF.pdf", "application/pdf", "media/library");
+    }
+
+    private sealed record ProgrammeSpec(string Code, string Name, int DurationYears, string? DurationLabel);
 }

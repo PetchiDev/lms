@@ -1,15 +1,27 @@
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #2d5f5a;
-  --color-primary-light: #3d7a70;
-  --color-apollo: #2081A1;
-  --color-cream: #f7f8f2;
-  --color-cream-dark: #eef0e8;
-  --color-sidebar: #141a21;
-  --color-muted: #f1f5f9;
-  --color-muted-foreground: #64748b;
-  --color-border: #e2e8f0;
+  /* Brand palette */
+  --color-dark: #0B3D52;
+  --color-teal: #1A7FA8;
+  --color-teal-light: #E8F5FB;
+  --color-gold: #E09320;
+  --color-gold-light: #FEF3DC;
+  --color-cream: #FAF9F6;
+  --color-white: #FFFFFF;
+  --color-text: #111827;
+  --color-text-secondary: #4B5563;
+  --color-text-muted: #9CA3AF;
+  --color-border: #D1E8F0;
+
+  /* Back-compat tokens used in UI */
+  --color-primary: var(--color-dark);
+  --color-primary-light: var(--color-teal);
+  --color-apollo: var(--color-teal);
+  --color-cream-dark: #F3F1ED;
+  --color-sidebar: var(--color-dark);
+  --color-muted: var(--color-teal-light);
+  --color-muted-foreground: var(--color-text-secondary);
   --color-destructive: #dc2626;
   --radius: 0.75rem;
 }
@@ -20,16 +32,17 @@ html {
 }
 
 body {
-  @apply text-slate-900 antialiased;
+  @apply antialiased;
   margin: 0;
   min-height: 100vh;
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  color: var(--color-text);
   background-color: var(--color-cream);
   overscroll-behavior: none;
 }
 
 .font-display {
-  font-family: 'Playfair Display', Georgia, serif;
+  font-family: "DM Serif Display", Georgia, serif;
 }
 
 #root {

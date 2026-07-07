@@ -7,6 +7,11 @@ public class University : BaseEntity
 {
     public string Name { get; set; } = string.Empty;
     public string Domain { get; set; } = string.Empty;
+    public string? LogoUrl { get; set; }
+    public string? EmailInviteSubject { get; set; }
+    public string? EmailInviteBodyHtml { get; set; }
+    public string? EmailFromName { get; set; }
+    public string? EmailFromEmail { get; set; }
     public bool IsActive { get; set; } = true;
 
     public ICollection<Cohort> Cohorts { get; set; } = [];

@@ -13,4 +13,7 @@ public interface IUniversityService
     Task DeleteAsync(Guid id, CancellationToken cancellationToken = default);
     Task InviteUniversityAdminAsync(CreateUniversityAdminRequest request, CancellationToken cancellationToken = default);
     Task<UniversityAdminResponse> CreateUniversityAdminAsync(CreateUniversityAdminDirectRequest request, CancellationToken cancellationToken = default);
+    Task<UniversityResponse> UploadLogoAsync(Guid id, Stream fileStream, string fileName, string contentType, CancellationToken cancellationToken = default);
+    Task<UniversityEmailTemplateResponse> GetEmailTemplateAsync(Guid id, CancellationToken cancellationToken = default);
+    Task<UniversityEmailTemplateResponse> UpdateEmailTemplateAsync(Guid id, UpdateUniversityEmailTemplateRequest request, CancellationToken cancellationToken = default);
 }

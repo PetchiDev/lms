@@ -4,6 +4,7 @@ export interface AuthUser {
   fullName: string
   role: string
   universityId?: string
+  universityLogoUrl?: string
   cohortId?: string
   expiresAt: string
 }

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Building2, Plus } from 'lucide-react'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { api, getErrorMessage } from '@/lib/api-client'
+import { assetUrl } from '@/lib/asset-url'
 import { authStore } from '@/lib/auth-store'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
 import { DashboardShell, Panel } from '@/components/layout/DashboardShell'
@@ -18,6 +19,7 @@ export function UniversitiesPage() {
   const [name, setName] = useState('')
   const [domain, setDomain] = useState('')
   const [programmeId, setProgrammeId] = useState('')
+  const [logoFile, setLogoFile] = useState<File | null>(null)
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   const universities = useQuery({
@@ -31,17 +33,27 @@ export function UniversitiesPage() {
   })
 
   const createUniversity = useMutation({
-    mutationFn: async () =>
-      api.post('/universities', {
+    mutationFn: async () => {
+      const { data } = await api.post('/universities', {
         name: name.trim(),
         domain: domain.trim().toLowerCase(),
         programmeId: programmeId || null,
-      }),
+      })
+      if (logoFile) {
+        const form = new FormData()
+        form.append('file', logoFile)
+        await api.post(`/universities/${data.id}/logo`, form, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+      }
+      return data
+    },
     onSuccess: () => {
       setMessage({ type: 'success', text: `${name} created successfully.` })
       setName('')
       setDomain('')
       setProgrammeId('')
+      setLogoFile(null)
       queryClient.invalidateQueries({ queryKey: ['universities'] })
     },
     onError: (err) => setMessage({ type: 'error', text: getErrorMessage(err) }),
@@ -91,6 +103,26 @@ export function UniversitiesPage() {
               <p className="text-xs text-slate-500">Students & staff sign in with @{domain || 'domain.edu'}</p>
             </div>
             <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="uni-logo">University logo (optional)</Label>
+              <div className="flex flex-wrap items-center gap-4">
+                <Input
+                  id="uni-logo"
+                  type="file"
+                  accept="image/*"
+                  className="h-11 rounded-xl"
+                  onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                />
+                {logoFile && (
+                  <img
+                    src={URL.createObjectURL(logoFile)}
+                    alt="Logo preview"
+                    className="h-12 w-12 rounded-lg border object-contain"
+                  />
+                )}
+              </div>
+              <p className="text-xs text-slate-500">Stored in Azure Blob storage.</p>
+            </div>
+            <div className="space-y-2 md:col-span-2">
               <Label>Link programme (optional)</Label>
               <select
                 className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#2081A1]"
@@ -119,7 +151,7 @@ export function UniversitiesPage() {
 
         <Panel title="All partner universities">
           <div className="grid gap-4 md:grid-cols-2">
-            {universities.data?.items?.map((u: { id: string; name: string; domain: string; isActive: boolean }) => (
+            {universities.data?.items?.map((u: { id: string; name: string; domain: string; isActive: boolean; logoUrl?: string }) => (
               <Link
                 key={u.id}
                 to={`/apollo/universities/${u.id}`}
@@ -127,7 +159,11 @@ export function UniversitiesPage() {
                 className="flex items-start gap-3 rounded-xl border border-slate-100 bg-gradient-to-br from-white to-slate-50 p-5 transition hover:border-[#2081A1]/40 hover:shadow-md"
               >
                 <div className="rounded-lg bg-[#2081A1]/10 p-2 text-[#2081A1]">
-                  <Building2 className="h-5 w-5" />
+                  {assetUrl(u.logoUrl) ? (
+                    <img src={assetUrl(u.logoUrl)!} alt="" className="h-5 w-5 object-contain" />
+                  ) : (
+                    <Building2 className="h-5 w-5" />
+                  )}
                 </div>
                 <div>
                   <p className="font-semibold text-slate-900">{u.name}</p>
