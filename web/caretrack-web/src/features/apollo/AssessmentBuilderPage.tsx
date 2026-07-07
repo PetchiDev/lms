@@ -12,6 +12,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { api, getErrorMessage } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
@@ -199,8 +200,12 @@ export function AssessmentBuilderPage() {
       setSaveMessage('Assessment saved successfully.')
       queryClient.invalidateQueries({ queryKey: ['assessment-overview', programmeId] })
       queryClient.invalidateQueries({ queryKey: ['admin-quiz', selectedModuleId] })
+      notify.success('Assessment saved.')
     },
-    onError: (err) => setSaveMessage(getErrorMessage(err)),
+    onError: (err) => {
+      setSaveMessage(getErrorMessage(err))
+      notify.error(err)
+    },
   })
 
   function updateQuestion(key: string, patch: Partial<QuestionDraft>) {

@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { AlertTriangle, MapPin, User } from 'lucide-react'
-import { api, getErrorMessage } from '@/lib/api-client'
+import { api } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { STUDENT_NAV } from '@/lib/student-nav'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
@@ -49,7 +50,9 @@ export function ClinicalRotationPage() {
       queryClient.invalidateQueries({ queryKey: ['my-logbook'] })
       setProcedure('')
       setNotes('')
+      notify.success('Logbook entry submitted.')
     },
+    onError: (err) => notify.error(err),
   })
 
   return (
@@ -132,7 +135,6 @@ export function ClinicalRotationPage() {
                   />
                 </div>
               </div>
-              {createEntry.error && <p className="mt-2 text-sm text-red-600">{getErrorMessage(createEntry.error)}</p>}
               <Button
                 className="mt-4 bg-[#2d5f5a] hover:bg-[#234a46]"
                 onClick={() => createEntry.mutate()}

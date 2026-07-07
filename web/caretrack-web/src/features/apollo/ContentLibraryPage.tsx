@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, FileStack, Plus, Send, Trash2, Upload } from 'lucide-react'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { api, getErrorMessage } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
 import { DashboardShell, Panel } from '@/components/layout/DashboardShell'
@@ -172,8 +173,12 @@ export function ContentLibraryPage() {
       setNewProgrammeYears('3')
       setModalError(null)
       queryClient.invalidateQueries({ queryKey: ['programmes'] })
+      notify.success('Programme created.')
     },
-    onError: (err) => setModalError(getErrorMessage(err)),
+    onError: (err) => {
+      setModalError(getErrorMessage(err))
+      notify.error(err)
+    },
   })
 
   const createSemester = useMutation({
@@ -199,8 +204,12 @@ export function ContentLibraryPage() {
       setNewSemesterYearId('')
       setModalError(null)
       queryClient.invalidateQueries({ queryKey: ['programme-structure', programmeId] })
+      notify.success('Semester created.')
     },
-    onError: (err) => setModalError(getErrorMessage(err)),
+    onError: (err) => {
+      setModalError(getErrorMessage(err))
+      notify.error(err)
+    },
   })
 
   function semesterDefaultsForYear(yearId: string) {
@@ -258,7 +267,9 @@ export function ContentLibraryPage() {
       setModuleDescription('')
       queryClient.invalidateQueries({ queryKey: ['content-modules'] })
       queryClient.invalidateQueries({ queryKey: ['programme-structure', programmeId] })
+      notify.success('Module created.')
     },
+    onError: (err) => notify.error(err),
   })
 
   const createLesson = useMutation({
@@ -268,7 +279,9 @@ export function ContentLibraryPage() {
       setSelectedLesson(res.data.id)
       setLessonTitle('')
       setPublishMessage(null)
+      notify.success('Lesson created.')
     },
+    onError: (err) => notify.error(err),
   })
 
   const updateStatus = useMutation({
@@ -277,8 +290,12 @@ export function ContentLibraryPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['content-lesson', selectedLesson] })
       setWorkflowMessage('Submitted for review.')
+      notify.success('Submitted for review.')
     },
-    onError: (err) => setWorkflowMessage(getErrorMessage(err)),
+    onError: (err) => {
+      setWorkflowMessage(getErrorMessage(err))
+      notify.error(err)
+    },
   })
 
   const approveReview = useMutation({
@@ -287,8 +304,12 @@ export function ContentLibraryPage() {
       queryClient.invalidateQueries({ queryKey: ['content-lesson', selectedLesson] })
       setWorkflowMessage('Lesson approved. You can now publish to universities.')
       setPublishMessage(null)
+      notify.success('Lesson approved.')
     },
-    onError: (err) => setWorkflowMessage(getErrorMessage(err)),
+    onError: (err) => {
+      setWorkflowMessage(getErrorMessage(err))
+      notify.error(err)
+    },
   })
 
   const publish = useMutation({
@@ -300,8 +321,12 @@ export function ContentLibraryPage() {
       setPublishMessage('Mapped to selected universities. Programme auto-linked where needed.')
       queryClient.invalidateQueries({ queryKey: ['content-lesson', selectedLesson] })
       queryClient.invalidateQueries({ queryKey: ['module-lessons', existingModuleId] })
+      notify.success('Lesson mapped to universities.')
     },
-    onError: (err) => setPublishMessage(getErrorMessage(err)),
+    onError: (err) => {
+      setPublishMessage(getErrorMessage(err))
+      notify.error(err)
+    },
   })
 
   const publishModule = useMutation({
@@ -313,8 +338,12 @@ export function ContentLibraryPage() {
       setPublishMessage(`All ${res.data.lessonsPublished} lessons in module mapped to selected universities.`)
       queryClient.invalidateQueries({ queryKey: ['module-lessons', existingModuleId] })
       if (selectedLesson) queryClient.invalidateQueries({ queryKey: ['content-lesson', selectedLesson] })
+      notify.success(`Module mapped (${res.data.lessonsPublished} lessons).`)
     },
-    onError: (err) => setPublishMessage(getErrorMessage(err)),
+    onError: (err) => {
+      setPublishMessage(getErrorMessage(err))
+      notify.error(err)
+    },
   })
 
   function selectExistingLesson(
@@ -370,8 +399,10 @@ export function ContentLibraryPage() {
       })
       setUploadMessage(`Uploaded: ${file.name}`)
       queryClient.invalidateQueries({ queryKey: ['content-lesson', lessonId] })
+      notify.success(`Uploaded: ${file.name}`)
     } catch (err) {
       setUploadMessage(getErrorMessage(err))
+      notify.error(err)
     }
   }
 
@@ -381,8 +412,10 @@ export function ContentLibraryPage() {
       await api.delete(`/content/lessons/${lessonId}/assets/${assetId}`)
       setUploadMessage('File removed.')
       queryClient.invalidateQueries({ queryKey: ['content-lesson', lessonId] })
+      notify.success('File removed.')
     } catch (err) {
       setUploadMessage(getErrorMessage(err))
+      notify.error(err)
     }
   }
 
@@ -809,7 +842,9 @@ export function ContentLibraryPage() {
             e.preventDefault()
             setModalError(null)
             if (!newProgrammeName.trim() || !newProgrammeCode.trim()) {
-              setModalError('Name and code are required.')
+              const msg = 'Name and code are required.'
+              setModalError(msg)
+              notify.error(msg)
               return
             }
             createProgramme.mutate()
@@ -871,13 +906,17 @@ export function ContentLibraryPage() {
             e.preventDefault()
             setModalError(null)
             if (!newSemesterName.trim()) {
-              setModalError('Semester name is required.')
+              const msg = 'Semester name is required.'
+              setModalError(msg)
+              notify.error(msg)
               return
             }
             if (newSemesterYearId === NEW_YEAR) {
               const yr = parseInt(newYearNumber, 10)
               if (years.some((y) => y.yearNumber === yr)) {
-                setModalError(`Year ${yr} already exists. Select it from the dropdown instead.`)
+                const msg = `Year ${yr} already exists. Select it from the dropdown instead.`
+                setModalError(msg)
+                notify.error(msg)
                 return
               }
             }

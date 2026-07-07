@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { BookMarked, Check, GraduationCap, Loader2, Search, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { api, getErrorMessage } from '@/lib/api-client'
+import { api } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { UniPanel } from '@/components/layout/UniversityShell'
 import { Button } from '@/components/ui/button'
@@ -105,7 +106,9 @@ export function ProgrammeAssignmentPage() {
       setProgrammeId('')
       setShowCreateCohort(false)
       setNewCohortName('')
+      notify.success('Programme assigned to student.')
     },
+    onError: (err) => notify.error(err),
   })
 
   const createCohort = useMutation({
@@ -123,7 +126,9 @@ export function ProgrammeAssignmentPage() {
       setCohortId(res.data.id)
       setShowCreateCohort(false)
       setNewCohortName('')
+      notify.success('Cohort created.')
     },
+    onError: (err) => notify.error(err),
   })
 
   function selectStudent(student: StudentRow) {
@@ -330,9 +335,6 @@ export function ProgrammeAssignmentPage() {
                         Cancel
                       </Button>
                     </div>
-                    {createCohort.error && (
-                      <p className="mt-2 text-sm text-red-600">{getErrorMessage(createCohort.error)}</p>
-                    )}
                   </div>
                 )}
 
@@ -344,10 +346,6 @@ export function ProgrammeAssignmentPage() {
                   >
                     + Add new cohort for this programme
                   </button>
-                )}
-
-                {assignCohort.error && (
-                  <p className="text-sm text-red-600">{getErrorMessage(assignCohort.error)}</p>
                 )}
 
                 <div className="flex flex-wrap gap-3 border-t border-slate-100 pt-4">

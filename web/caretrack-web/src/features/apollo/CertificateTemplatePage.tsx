@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { Award, Save, Upload } from 'lucide-react'
-import { api, getErrorMessage } from '@/lib/api-client'
+import { api } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
@@ -23,7 +24,6 @@ export function CertificateTemplatePage() {
   const auth = authStore.get()!
   const isAdmin = auth.role === 'ApolloAdmin'
   const queryClient = useQueryClient()
-  const [message, setMessage] = useState<string | null>(null)
 
   const template = useQuery({
     queryKey: ['certificate-template'],
@@ -74,19 +74,24 @@ export function CertificateTemplatePage() {
   const save = useMutation({
     mutationFn: async () => (await api.put('/certificates/template', form)).data,
     onSuccess: () => {
-      setMessage('Certificate template saved.')
       queryClient.invalidateQueries({ queryKey: ['certificate-template'] })
+      notify.success('Certificate template saved.')
     },
-    onError: (err) => setMessage(getErrorMessage(err)),
+    onError: (err) => notify.error(err),
   })
 
   async function uploadAsset(file: File, field: 'logoUrl' | 'leftSignatureImageUrl' | 'rightSignatureImageUrl') {
-    const fd = new FormData()
-    fd.append('file', file)
-    const { data } = await api.post('/certificates/template/assets', fd, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    setForm((prev) => ({ ...prev, [field]: data.url }))
+    try {
+      const fd = new FormData()
+      fd.append('file', file)
+      const { data } = await api.post('/certificates/template/assets', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      setForm((prev) => ({ ...prev, [field]: data.url }))
+      notify.success('Asset uploaded.')
+    } catch (err) {
+      notify.error(err)
+    }
   }
 
   function field(id: keyof typeof form, label: string, multiline = false) {
@@ -182,9 +187,8 @@ export function CertificateTemplatePage() {
             </Panel>
 
             {isAdmin && (
-              <div className="flex items-center justify-between gap-4">
-                {message && <p className={`text-sm ${message.includes('saved') ? 'text-emerald-600' : 'text-red-600'}`}>{message}</p>}
-                <Button className="ml-auto bg-[#2081A1] hover:bg-[#1a6d89]" disabled={save.isPending} onClick={() => { setMessage(null); save.mutate() }}>
+              <div className="flex items-center justify-end gap-4">
+                <Button className="bg-[#2081A1] hover:bg-[#1a6d89]" disabled={save.isPending} onClick={() => save.mutate()}>
                   <Save className="mr-2 h-4 w-4" />{save.isPending ? 'Saving…' : 'Save template'}
                 </Button>
               </div>

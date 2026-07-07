@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, Upload, UserPlus } from 'lucide-react'
-import { api, getErrorMessage } from '@/lib/api-client'
+import { api } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { UniPanel } from '@/components/layout/UniversityShell'
 import { Button } from '@/components/ui/button'
@@ -90,7 +91,9 @@ export function UniversityEnrolmentPage() {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['cohorts'] })
       setCohortId(res.data.id)
+      notify.success('Cohort created.')
     },
+    onError: (err) => notify.error(err),
   })
 
   const createStudent = useMutation({
@@ -103,17 +106,25 @@ export function UniversityEnrolmentPage() {
       setFirstName('')
       setLastName('')
       setPassword('')
+      notify.success('Student created.')
     },
+    onError: (err) => notify.error(err),
   })
 
   async function importCsv(file: File) {
     if (!cohortId) return
     const form = new FormData()
     form.append('file', file)
-    await api.post(`/enrolments/students/import?cohortId=${cohortId}`, form, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    })
-    queryClient.invalidateQueries({ queryKey: ['students'] })
+    try {
+      await api.post(`/enrolments/students/import?cohortId=${cohortId}`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      queryClient.invalidateQueries({ queryKey: ['students'] })
+      queryClient.invalidateQueries({ queryKey: ['university-report'] })
+      notify.success('CSV import completed.')
+    } catch (err) {
+      notify.error(err)
+    }
   }
 
   const selectedProgramme = linkedProgrammes.find((p) => p.id === programmeId)
@@ -177,9 +188,6 @@ export function UniversityEnrolmentPage() {
                     ) : null}
                     Create {new Date().getFullYear()} Intake cohort
                   </Button>
-                  {createCohort.error && (
-                    <p className="mt-2 text-sm text-red-600">{getErrorMessage(createCohort.error)}</p>
-                  )}
                 </div>
               )}
             </div>
@@ -207,12 +215,6 @@ export function UniversityEnrolmentPage() {
             <Input value={lastName} onChange={(e) => setLastName(e.target.value)} />
           </div>
         </div>
-        {createStudent.error && (
-          <p className="mt-3 text-sm text-red-600">{getErrorMessage(createStudent.error)}</p>
-        )}
-        {createStudent.isSuccess && (
-          <p className="mt-3 text-sm text-emerald-600">Student created successfully.</p>
-        )}
         <div className="mt-6 flex flex-wrap gap-3">
           <Button
             onClick={() => createStudent.mutate()}

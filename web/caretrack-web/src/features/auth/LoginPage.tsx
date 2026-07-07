@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BookOpen, Building2, GraduationCap, Stethoscope } from 'lucide-react'
 import gsap from 'gsap'
 import { api, getErrorMessage } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { clearStudentCache } from '@/lib/query-client'
 import { getRoleRedirect } from '@/lib/utils'
@@ -39,11 +40,15 @@ export function LoginPage() {
     e.preventDefault()
     setError('')
     if (!email.includes('@')) {
-      setError('Enter a valid email address')
+      const msg = 'Enter a valid email address'
+      setError(msg)
+      notify.error(msg)
       return
     }
     if (!password) {
-      setError('Enter your password')
+      const msg = 'Enter your password'
+      setError(msg)
+      notify.error(msg)
       return
     }
     setLoading(true)
@@ -53,7 +58,9 @@ export function LoginPage() {
       authStore.set(data)
       navigate(getRoleRedirect(data.role))
     } catch (err) {
-      setError(getErrorMessage(err))
+      const msg = getErrorMessage(err)
+      setError(msg)
+      notify.error(err)
     } finally {
       setLoading(false)
     }

@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { BookOpen, CheckCircle2, ClipboardCheck, Lock, Play, Video } from 'lucide-react'
 import { api } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { studentQueryKey } from '@/lib/query-client'
 import { STUDENT_NAV } from '@/lib/student-nav'
@@ -25,8 +26,14 @@ export function CurriculumPage() {
     mutationFn: async () => (await api.post('/students/me/curriculum/complete-all')).data,
     onSuccess: (result: { allCurriculumComplete: boolean }) => {
       queryClient.invalidateQueries({ queryKey: studentQueryKey('dashboard') })
-      if (result.allCurriculumComplete) navigate('/dashboard/assessments')
+      if (result.allCurriculumComplete) {
+        notify.success('Curriculum complete!')
+        navigate('/dashboard/assessments')
+      } else {
+        notify.success('Lessons marked complete.')
+      }
     },
+    onError: (err) => notify.error(err),
   })
 
   const modules = data?.modules ?? []

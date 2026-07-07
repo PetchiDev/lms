@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle, ClipboardList, Stethoscope } from 'lucide-react'
-import { api, getErrorMessage } from '@/lib/api-client'
+import { api } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
 import { DashboardShell } from '@/components/layout/DashboardShell'
@@ -43,7 +44,11 @@ export function SignoffsPage() {
   const signOff = useMutation({
     mutationFn: async ({ id, action }: { id: string; action: 'approve' | 'reject' }) =>
       api.post(`/signoffs/${id}`, { action, remarks: remarks[id] ?? '' }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['supervisor-dashboard'] }),
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['supervisor-dashboard'] })
+      notify.success(variables.action === 'approve' ? 'Entry approved.' : 'Entry rejected.')
+    },
+    onError: (err) => notify.error(err),
   })
 
   return (
@@ -134,7 +139,6 @@ export function SignoffsPage() {
                       className="rounded-xl"
                     />
                   </div>
-                  {signOff.error && <p className="px-4 pb-4 text-sm text-red-600">{getErrorMessage(signOff.error)}</p>}
                 </div>
               ))}
               {!data?.pendingEntries?.length && (

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Save, Upload } from 'lucide-react'
-import { api, getErrorMessage } from '@/lib/api-client'
+import { api } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { UniPanel } from '@/components/layout/UniversityShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -17,7 +18,6 @@ function assetUrl(url?: string | null) {
 
 export function UniversityCertificateTemplatePage() {
   const queryClient = useQueryClient()
-  const [message, setMessage] = useState<string | null>(null)
 
   const template = useQuery({
     queryKey: ['certificate-template'],
@@ -68,10 +68,10 @@ export function UniversityCertificateTemplatePage() {
   const save = useMutation({
     mutationFn: async () => (await api.put('/certificates/template', form)).data,
     onSuccess: () => {
-      setMessage('Certificate template saved.')
       queryClient.invalidateQueries({ queryKey: ['certificate-template'] })
+      notify.success('Certificate template saved.')
     },
-    onError: (err) => setMessage(getErrorMessage(err)),
+    onError: (err) => notify.error(err),
   })
 
   const uploadAsset = useMutation({
@@ -80,21 +80,17 @@ export function UniversityCertificateTemplatePage() {
       fd.append('file', file)
       return (await api.post('/certificates/template/assets', fd, { headers: { 'Content-Type': 'multipart/form-data' } })).data as { url: string }
     },
-    onError: (err) => setMessage(getErrorMessage(err)),
+    onError: (err) => notify.error(err),
   })
 
   async function handleAsset(file: File, field: 'logoUrl' | 'leftSignatureImageUrl' | 'rightSignatureImageUrl') {
     const res = await uploadAsset.mutateAsync(file)
     setForm((f) => ({ ...f, [field]: res.url }))
-    setMessage('Asset uploaded.')
+    notify.success('Asset uploaded.')
   }
 
   return (
     <div className="space-y-6">
-      {message && (
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm">{message}</div>
-      )}
-
       <UniPanel
         title="Certificate template"
         action={

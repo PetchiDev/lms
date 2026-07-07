@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, CheckCircle, CheckCircle2, Download, Play } from 'lucide-react'
 import { api } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
 import { studentQueryKey } from '@/lib/query-client'
 import { STUDENT_NAV } from '@/lib/student-nav'
@@ -44,11 +45,16 @@ export function ModulePage() {
       queryClient.invalidateQueries({ queryKey: studentQueryKey('module', moduleId) })
       queryClient.invalidateQueries({ queryKey: studentQueryKey('dashboard') })
       if (result.allCurriculumComplete) {
+        notify.success('Curriculum complete!')
         navigate('/dashboard/assessments')
       } else if (result.moduleCompleted) {
+        notify.success('Module complete! Opening assessment.')
         navigate(`/learn/modules/${moduleId}/quiz`)
+      } else {
+        notify.success('Lessons marked complete.')
       }
     },
+    onError: (err) => notify.error(err),
   })
 
   useEffect(() => {
@@ -127,7 +133,9 @@ export function LessonPlayerPage() {
       queryClient.invalidateQueries({ queryKey: studentQueryKey('lesson', lessonId) })
       queryClient.invalidateQueries({ queryKey: studentQueryKey('dashboard') })
       queryClient.invalidateQueries({ queryKey: studentQueryKey('module') })
+      notify.success('Lesson marked complete.')
     },
+    onError: (err) => notify.error(err),
   })
 
   useEffect(() => {
@@ -217,10 +225,19 @@ export function QuizPage() {
         selectedOptionId: answers[q.id],
       })),
     }
-    const { data } = await api.post(`/students/me/quizzes/${quiz.id}/attempts`, payload)
-    setResult(data)
-    queryClient.invalidateQueries({ queryKey: studentQueryKey('dashboard') })
-    queryClient.invalidateQueries({ queryKey: studentQueryKey('quiz', moduleId) })
+    try {
+      const { data } = await api.post(`/students/me/quizzes/${quiz.id}/attempts`, payload)
+      setResult(data)
+      queryClient.invalidateQueries({ queryKey: studentQueryKey('dashboard') })
+      queryClient.invalidateQueries({ queryKey: studentQueryKey('quiz', moduleId) })
+      if (data.passed) {
+        notify.success(`Assessment passed (${data.scorePercent}%).`)
+      } else {
+        notify.info(`Score: ${data.scorePercent}%. Keep learning!`)
+      }
+    } catch (err) {
+      notify.error(err)
+    }
   }
 
   return (

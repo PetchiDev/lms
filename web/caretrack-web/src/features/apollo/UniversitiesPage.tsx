@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { Building2, Plus } from 'lucide-react'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { api, getErrorMessage } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { assetUrl } from '@/lib/asset-url'
 import { authStore } from '@/lib/auth-store'
 import { useDashboardAnimation } from '@/animations/useDashboardAnimation'
@@ -49,21 +50,28 @@ export function UniversitiesPage() {
       return data
     },
     onSuccess: () => {
-      setMessage({ type: 'success', text: `${name} created successfully.` })
+      notify.success(`${name} created.`)
       setName('')
       setDomain('')
       setProgrammeId('')
       setLogoFile(null)
+      setMessage(null)
       queryClient.invalidateQueries({ queryKey: ['universities'] })
     },
-    onError: (err) => setMessage({ type: 'error', text: getErrorMessage(err) }),
+    onError: (err) => {
+      const msg = getErrorMessage(err)
+      setMessage({ type: 'error', text: msg })
+      notify.error(err)
+    },
   })
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setMessage(null)
     if (!name.trim() || !domain.trim()) {
-      setMessage({ type: 'error', text: 'University name and domain are required.' })
+      const msg = 'University name and domain are required.'
+      setMessage({ type: 'error', text: msg })
+      notify.error(msg)
       return
     }
     createUniversity.mutate()

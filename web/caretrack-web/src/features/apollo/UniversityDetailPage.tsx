@@ -12,6 +12,7 @@ import {
 import gsap from 'gsap'
 import { getApolloNavItems } from '@/lib/apollo-nav'
 import { api, getErrorMessage } from '@/lib/api-client'
+import { notify } from '@/lib/notify'
 import { assetUrl } from '@/lib/asset-url'
 import { authStore } from '@/lib/auth-store'
 import { StatCard } from '@/components/dashboard/StatCard'
@@ -93,8 +94,13 @@ export function UniversityDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['university', universityId] })
       setProgrammeMessage('Programmes linked successfully.')
+      notify.success('Programmes linked.')
     },
-    onError: (err) => setProgrammeMessage(getErrorMessage(err)),
+    onError: (err) => {
+      const msg = getErrorMessage(err)
+      setProgrammeMessage(msg)
+      notify.error(err)
+    },
   })
 
   const uploadLogo = useMutation({
@@ -108,8 +114,13 @@ export function UniversityDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['university', universityId] })
       setLogoMessage('Logo uploaded successfully.')
+      notify.success('Logo uploaded.')
     },
-    onError: (err) => setLogoMessage(getErrorMessage(err)),
+    onError: (err) => {
+      const msg = getErrorMessage(err)
+      setLogoMessage(msg)
+      notify.error(err)
+    },
   })
 
   const saveEmailTemplate = useMutation({
@@ -124,8 +135,13 @@ export function UniversityDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['university-email-template', universityId] })
       queryClient.invalidateQueries({ queryKey: ['university', universityId] })
       setEmailMessage('Email template saved.')
+      notify.success('Email template saved.')
     },
-    onError: (err) => setEmailMessage(getErrorMessage(err)),
+    onError: (err) => {
+      const msg = getErrorMessage(err)
+      setEmailMessage(msg)
+      notify.error(err)
+    },
   })
 
   const createAdmin = useMutation({
@@ -144,10 +160,13 @@ export function UniversityDetailPage() {
       setAdminPassword('')
       setAdminFirstName('')
       setAdminLastName('')
+      notify.success('College admin created.')
     },
     onError: (err) => {
       setCreatedAdmin(null)
-      setAdminMessage(getErrorMessage(err))
+      const msg = getErrorMessage(err)
+      setAdminMessage(msg)
+      notify.error(err)
     },
   })
 
