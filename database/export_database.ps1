@@ -23,13 +23,17 @@ try {
     dotnet run --project tools/CareTrack.DbExport/CareTrack.DbExport.csproj -- $OutputFile
 
     $generated = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $schema = [System.IO.File]::ReadAllText($schemaFile)
+    $data = [System.IO.File]::ReadAllText($OutputFile)
+    $tableCount = ([regex]::Matches($data, '(?m)^-- Table: ')).Count
     $header = @"
 -- =============================================================================
--- CareTrack LMS — FULL DATABASE SCRIPT (schema + data)
+-- CareTrack LMS - FULL DATABASE SCRIPT (schema + data)
 -- Generated: $generated
--- Tables: 52 (schema + all row data)
+-- Tables: $tableCount (schema + all row data)
 --
--- Restore:
+-- Restore (new database):
 --   1. CREATE DATABASE your_db;
 --   2. psql -U postgres -d your_db -f caretrack_full.sql
 --
@@ -37,10 +41,8 @@ try {
 -- =============================================================================
 
 "@
-    $schema = [System.IO.File]::ReadAllText($schemaFile)
-    $data = [System.IO.File]::ReadAllText($OutputFile)
     $combined = $header + $schema.TrimEnd() + "`r`n`r`n`r`n-- =============================================================================`r`n-- DATA`r`n-- =============================================================================`r`n`r`n" + $data.TrimEnd() + "`r`n"
-    [System.IO.File]::WriteAllText($fullFile, $combined)
+    [System.IO.File]::WriteAllText($fullFile, $combined, $utf8NoBom)
 
     Write-Host "Data exported to $OutputFile" -ForegroundColor Green
     Write-Host "Full dump updated: $fullFile" -ForegroundColor Green

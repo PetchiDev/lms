@@ -1669,3 +1669,122 @@ BEGIN
 END $EF$;
 COMMIT;
 
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707064049_UniversityBrandingAndEmailTemplates') THEN
+    ALTER TABLE "Universities" ADD "EmailFromEmail" character varying(320);
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707064049_UniversityBrandingAndEmailTemplates') THEN
+    ALTER TABLE "Universities" ADD "EmailFromName" character varying(200);
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707064049_UniversityBrandingAndEmailTemplates') THEN
+    ALTER TABLE "Universities" ADD "EmailInviteBodyHtml" text;
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707064049_UniversityBrandingAndEmailTemplates') THEN
+    ALTER TABLE "Universities" ADD "EmailInviteSubject" character varying(300);
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707064049_UniversityBrandingAndEmailTemplates') THEN
+    ALTER TABLE "Universities" ADD "LogoUrl" character varying(2000);
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707064049_UniversityBrandingAndEmailTemplates') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20260707064049_UniversityBrandingAndEmailTemplates', '10.0.9');
+    END IF;
+END $EF$;
+COMMIT;
+
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707084939_TenantCertificateTemplates') THEN
+    ALTER TABLE "CertificateTemplates" ADD "UniversityId" uuid;
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707084939_TenantCertificateTemplates') THEN
+    CREATE UNIQUE INDEX "IX_CertificateTemplates_UniversityId" ON "CertificateTemplates" ("UniversityId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707084939_TenantCertificateTemplates') THEN
+    ALTER TABLE "CertificateTemplates" ADD CONSTRAINT "FK_CertificateTemplates_Universities_UniversityId" FOREIGN KEY ("UniversityId") REFERENCES "Universities" ("Id") ON DELETE CASCADE;
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707084939_TenantCertificateTemplates') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20260707084939_TenantCertificateTemplates', '10.0.9');
+    END IF;
+END $EF$;
+COMMIT;
+
+START TRANSACTION;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707092940_UniqueCertificatePerStudentProgramme') THEN
+
+    DELETE FROM "Certificates" c
+    USING "Certificates" d
+    WHERE c."StudentId" = d."StudentId"
+      AND c."ProgrammeId" = d."ProgrammeId"
+      AND (
+           c."IssuedAt" < d."IssuedAt"
+           OR (c."IssuedAt" = d."IssuedAt" AND c."Id" < d."Id")
+      );
+
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707092940_UniqueCertificatePerStudentProgramme') THEN
+    DROP INDEX "IX_Certificates_StudentId";
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707092940_UniqueCertificatePerStudentProgramme') THEN
+    CREATE UNIQUE INDEX "IX_Certificates_StudentId_ProgrammeId" ON "Certificates" ("StudentId", "ProgrammeId");
+    END IF;
+END $EF$;
+
+DO $EF$
+BEGIN
+    IF NOT EXISTS(SELECT 1 FROM "__EFMigrationsHistory" WHERE "MigrationId" = '20260707092940_UniqueCertificatePerStudentProgramme') THEN
+    INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion")
+    VALUES ('20260707092940_UniqueCertificatePerStudentProgramme', '10.0.9');
+    END IF;
+END $EF$;
+COMMIT;
+

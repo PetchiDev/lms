@@ -47,6 +47,7 @@ public static class DataSeeder
 
         await SeedProgrammeCatalogueAsync(db, blobStorage);
         await SeedModuleQuizzesAsync(db);
+        await UniversityStudentSeeder.SeedAsync(services);
     }
 
     private static async Task SeedProgrammeCatalogueAsync(CareTrackDbContext db, IBlobStorageService blobStorage)

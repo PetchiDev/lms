@@ -143,7 +143,7 @@ export function LoginPage() {
             </Button>
           </form>
 
-          <details className="mt-5 rounded-xl border border-slate-200/80 bg-white/80">
+          {/* <details className="mt-5 rounded-xl border border-slate-200/80 bg-white/80">
             <summary className="cursor-pointer px-4 py-3 text-xs font-medium text-slate-500 hover:text-slate-700">
               Demo accounts for testing
             </summary>
@@ -154,7 +154,7 @@ export function LoginPage() {
               <p><span className="font-medium text-slate-600">Supervisor:</span> supervisor@meridian.edu / Supervisor@123</p>
               <p><span className="font-medium text-slate-600">Student:</span> student@meridian.edu / Student@123</p>
             </div>
-          </details>
+          </details> */}
         </div>
       </div>
     </div>

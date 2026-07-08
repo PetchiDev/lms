@@ -1,12 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   AlertTriangle,
   ArrowLeft,
   Building2,
+  ChevronLeft,
+  ChevronRight,
   GraduationCap,
   Mail,
+  Search,
   Users,
 } from 'lucide-react'
 import { getApolloNavItems } from '@/lib/apollo-nav'
@@ -35,6 +38,8 @@ interface StudentRow {
   lastActivityAt?: string
 }
 
+const STUDENTS_PAGE_SIZE = 10
+
 export function UniversityDetailPage() {
   const { universityId } = useParams<{ universityId: string }>()
   const auth = authStore.get()!
@@ -53,6 +58,8 @@ export function UniversityDetailPage() {
   const [editPassword, setEditPassword] = useState('')
   const [editFirstName, setEditFirstName] = useState('')
   const [editLastName, setEditLastName] = useState('')
+  const [studentSearch, setStudentSearch] = useState('')
+  const [studentPage, setStudentPage] = useState(1)
 
   const universityAdmins = useQuery({
     queryKey: ['university-admins', universityId],
@@ -182,6 +189,35 @@ export function UniversityDetailPage() {
   )
 
   const students: StudentRow[] = report.data?.students ?? []
+
+  const filteredStudents = useMemo(() => {
+    const q = studentSearch.trim().toLowerCase()
+    if (!q) return students
+    return students.filter(
+      (s) =>
+        s.fullName.toLowerCase().includes(q) ||
+        s.email.toLowerCase().includes(q) ||
+        s.cohortName?.toLowerCase().includes(q),
+    )
+  }, [students, studentSearch])
+
+  const totalStudentPages = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PAGE_SIZE))
+
+  const paginatedStudents = useMemo(() => {
+    const start = (studentPage - 1) * STUDENTS_PAGE_SIZE
+    return filteredStudents.slice(start, start + STUDENTS_PAGE_SIZE)
+  }, [filteredStudents, studentPage])
+
+  useEffect(() => {
+    setStudentPage(1)
+  }, [studentSearch])
+
+  useEffect(() => {
+    if (studentPage > totalStudentPages) {
+      setStudentPage(totalStudentPages)
+    }
+  }, [studentPage, totalStudentPages])
+
   const avgProgress = Math.round(report.data?.averageProgress ?? uniStats?.averageProgress ?? 0)
   const totalStudents = report.data?.totalStudents ?? uniStats?.totalStudents ?? 0
   const atRisk = report.data?.atRiskCount ?? uniStats?.atRiskCount ?? 0
@@ -277,44 +313,96 @@ export function UniversityDetailPage() {
               {students.length === 0 ? (
                 <p className="text-sm text-slate-500">No enrolled students yet.</p>
               ) : (
-                <div className="space-y-3">
-                  {students.map((s) => (
-                    <div
-                      key={s.studentId}
-                      className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-gradient-to-r from-white to-slate-50/80 p-4 sm:flex-row sm:items-center"
-                    >
-                      <div className="flex min-w-0 flex-1 items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2081A1]/10 text-sm font-bold text-[#2081A1]">
-                          {s.fullName.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate font-medium text-slate-900">{s.fullName}</p>
-                          <p className="flex items-center gap-1 truncate text-xs text-slate-500">
-                            <Mail className="h-3 w-3" />
-                            {s.email}
+                <div className="space-y-4">
+                  <div className="relative max-w-md">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      placeholder="Search by student name…"
+                      value={studentSearch}
+                      onChange={(e) => setStudentSearch(e.target.value)}
+                      className="pl-9"
+                    />
+                  </div>
+
+                  {filteredStudents.length === 0 ? (
+                    <p className="text-sm text-slate-500">No students match your search.</p>
+                  ) : (
+                    <>
+                      <div className="space-y-3">
+                        {paginatedStudents.map((s) => (
+                          <div
+                            key={s.studentId}
+                            className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-gradient-to-r from-white to-slate-50/80 p-4 sm:flex-row sm:items-center"
+                          >
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#2081A1]/10 text-sm font-bold text-[#2081A1]">
+                                {s.fullName.charAt(0)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="truncate font-medium text-slate-900">{s.fullName}</p>
+                                <p className="flex items-center gap-1 truncate text-xs text-slate-500">
+                                  <Mail className="h-3 w-3" />
+                                  {s.email}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-1 items-center gap-4 sm:max-w-xs">
+                              <Progress value={s.progressPercent} className="flex-1" />
+                              <span className="w-10 text-right text-sm font-semibold tabular-nums text-[#2081A1]">
+                                {s.progressPercent}%
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 sm:w-28 sm:justify-end">
+                              {s.isAtRisk ? (
+                                <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  At risk
+                                </span>
+                              ) : (
+                                <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
+                                  On track
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {totalStudentPages > 1 && (
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4">
+                          <p className="text-sm text-slate-500">
+                            Showing {(studentPage - 1) * STUDENTS_PAGE_SIZE + 1}–
+                            {Math.min(studentPage * STUDENTS_PAGE_SIZE, filteredStudents.length)} of{' '}
+                            {filteredStudents.length}
+                            {studentSearch.trim() ? ` (filtered from ${students.length})` : ''}
                           </p>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={studentPage <= 1}
+                              onClick={() => setStudentPage((p) => p - 1)}
+                            >
+                              <ChevronLeft className="h-4 w-4" />
+                              Previous
+                            </Button>
+                            <span className="text-sm tabular-nums text-slate-600">
+                              Page {studentPage} of {totalStudentPages}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              disabled={studentPage >= totalStudentPages}
+                              onClick={() => setStudentPage((p) => p + 1)}
+                            >
+                              Next
+                              <ChevronRight className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex flex-1 items-center gap-4 sm:max-w-xs">
-                        <Progress value={s.progressPercent} className="flex-1" />
-                        <span className="w-10 text-right text-sm font-semibold tabular-nums text-[#2081A1]">
-                          {s.progressPercent}%
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 sm:w-28 sm:justify-end">
-                        {s.isAtRisk ? (
-                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs text-amber-700">
-                            <AlertTriangle className="h-3 w-3" />
-                            At risk
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">
-                            On track
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </TabsContent>
