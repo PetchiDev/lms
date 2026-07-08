@@ -88,7 +88,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
-    options.CustomSchemaIds(type => type.FullName?.Replace('+', '.'));
+    options.CustomSchemaIds(type => (type.FullName ?? type.Name).Replace('+', '.'));
 });
 
 var app = builder.Build();
@@ -97,11 +97,25 @@ app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
 
-app.UseHttpsRedirection();
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        // Use a relative endpoint so Swagger works behind IIS virtual directories / PathBase.
+        options.SwaggerEndpoint("v1/swagger.json", "CareTrack.Api v1");
+    });
+}
+else
+{
+    app.UseSwagger();
+    app.UseSwaggerUI(options =>
+    {
+        // Use a relative endpoint so Swagger works behind IIS virtual directories / PathBase.
+        options.SwaggerEndpoint("v1/swagger.json", "CareTrack.Api v1");
+    });
+
+}
+    app.UseHttpsRedirection();
 app.UseResponseCompression();
 app.UseCors("Frontend");
 app.UseRateLimiter();

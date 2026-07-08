@@ -5,10 +5,18 @@
 --
 -- Restore (new database):
 --   1. CREATE DATABASE your_db;
---   2. psql -U postgres -d your_db -f caretrack_full.sql
+--   2. Stop the API (do NOT run dotnet ef database update first)
+--   3. psql -U postgres -d your_db -v ON_ERROR_STOP=1 -f caretrack_full.sql
 --
 -- Or use: .\database\restore_database.ps1 -DatabaseName your_db
 -- =============================================================================
+
+-- Clean slate: drop any existing tables (e.g. from a prior EF migration run)
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO public;
+
 CREATE TABLE IF NOT EXISTS "__EFMigrationsHistory" (
     "MigrationId" character varying(150) NOT NULL,
     "ProductVersion" character varying(32) NOT NULL,
@@ -6253,12 +6261,6 @@ INSERT INTO "UniversityProgrammes" ("Id", "UniversityId", "ProgrammeId", "Create
 INSERT INTO "UniversityProgrammes" ("Id", "UniversityId", "ProgrammeId", "CreatedAt", "UpdatedAt") VALUES ('20bdefa0-3d30-434a-a316-a486bbc3e598', '820fd0c9-0522-4030-9b23-0b4b44b3ffeb', '025b09d3-3db4-43ab-951c-291384d63ae6', '2026-07-07 15:10:07.177880', NULL);
 
 -- Table: __EFMigrationsHistory (7 rows)
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES ('20260705061153_InitialCreate', '10.0.9');
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES ('20260705070121_Phase2ClinicalAndIntegrations', '10.0.9');
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES ('20260706093527_CertificateTemplate', '10.0.9');
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES ('20260706102735_StudentSemesterProgress', '10.0.9');
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES ('20260707064049_UniversityBrandingAndEmailTemplates', '10.0.9');
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES ('20260707084939_TenantCertificateTemplates', '10.0.9');
-INSERT INTO "__EFMigrationsHistory" ("MigrationId", "ProductVersion") VALUES ('20260707092940_UniqueCertificatePerStudentProgramme', '10.0.9');
+-- Skipped: migration history is applied by caretrack_schema.sql
 
 SET session_replication_role = DEFAULT;

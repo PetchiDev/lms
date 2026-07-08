@@ -17,13 +17,24 @@ param(
     [string]$User = "postgres",
     [string]$Password = "Password@1",
     [switch]$UseDockerContainer,
-    [string]$DockerContainer = "caretrack-postgres"
+    [string]$DockerContainer = "caretrack-postgres",
+    [switch]$UseFullScript
 )
 
 $ErrorActionPreference = "Stop"
 $schemaFile = Join-Path $PSScriptRoot "caretrack_schema.sql"
 $dataFile = Join-Path $PSScriptRoot "caretrack_data.sql"
+$fullFile = Join-Path $PSScriptRoot "caretrack_full.sql"
 $env:PGPASSWORD = $Password
+
+$schemaReset = @"
+-- Clean slate: drop any existing tables (e.g. from a prior EF migration run)
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO public;
+
+"@
 
 function Invoke-SqlFile {
     param([string]$Database, [string]$File)
@@ -52,6 +63,7 @@ function Invoke-SqlCommand {
 }
 
 Write-Host "Target: database '$DatabaseName'" -ForegroundColor Cyan
+Write-Host "Stop the CareTrack API before restoring." -ForegroundColor Yellow
 
 try {
     Invoke-SqlCommand -Database "postgres" -Command "CREATE DATABASE `"$DatabaseName`";"
@@ -61,11 +73,21 @@ catch {
     Write-Host "Database '$DatabaseName' may already exist — continuing." -ForegroundColor Yellow
 }
 
-Write-Host "Applying schema ($schemaFile)..." -ForegroundColor Cyan
-Invoke-SqlFile -Database $DatabaseName -File $schemaFile
+if ($UseFullScript) {
+    if (-not (Test-Path $fullFile)) {
+        throw "Full script not found: $fullFile"
+    }
 
-Write-Host "Loading data ($dataFile)..." -ForegroundColor Cyan
-Invoke-SqlFile -Database $DatabaseName -File $dataFile
+    Write-Host "Applying full dump ($fullFile)..." -ForegroundColor Cyan
+    Invoke-SqlFile -Database $DatabaseName -File $fullFile
+}
+else {
+    Write-Host "Applying schema ($schemaFile)..." -ForegroundColor Cyan
+    Invoke-SqlFile -Database $DatabaseName -File $schemaFile
+
+    Write-Host "Loading data ($dataFile)..." -ForegroundColor Cyan
+    Invoke-SqlFile -Database $DatabaseName -File $dataFile
+}
 
 Write-Host ""
 Write-Host "Restore complete." -ForegroundColor Green

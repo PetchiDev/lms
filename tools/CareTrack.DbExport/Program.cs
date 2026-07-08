@@ -42,6 +42,9 @@ sb.AppendLine();
 
 foreach (var table in tables)
 {
+    if (string.Equals(table, "__EFMigrationsHistory", StringComparison.OrdinalIgnoreCase))
+        continue;
+
     var columns = new List<(string Name, string DataType)>();
     await using (var colCmd = new NpgsqlCommand(
         """

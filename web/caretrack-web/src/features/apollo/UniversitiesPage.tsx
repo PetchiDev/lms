@@ -388,6 +388,7 @@ export function UniversitiesPage() {
             setEditLogoFile(null)
           }}
           title="Edit university"
+          size="lg"
         >
           <form onSubmit={handleUpdate} className="space-y-4">
             <div className="space-y-2">
@@ -426,7 +427,7 @@ export function UniversitiesPage() {
             </div>
             <div className="space-y-2">
               <Label>Linked programmes</Label>
-              <div className="max-h-40 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3">
+              <div className="max-h-48 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3">
                 {(programmes.data ?? []).map((p: { id: string; name: string; code: string }) => (
                   <label
                     key={p.id}
@@ -440,12 +441,14 @@ export function UniversitiesPage() {
                       onChange={() => toggleEditProgramme(p.id)}
                       className="h-4 w-4 rounded border-slate-300 text-[#2081A1]"
                     />
-                    <span className="text-sm text-slate-800">{p.name} ({p.code})</span>
+                    <span className="text-sm text-slate-800">
+                      {p.name} ({p.code})
+                    </span>
                   </label>
                 ))}
               </div>
             </div>
-            <div className="flex gap-2 pt-2">
+            <div className="sticky bottom-0 flex gap-2 border-t border-slate-100 bg-white pt-4">
               <Button type="submit" className="bg-[#2081A1]" disabled={updateUniversity.isPending}>
                 {updateUniversity.isPending ? 'Saving…' : 'Save changes'}
               </Button>
@@ -455,6 +458,7 @@ export function UniversitiesPage() {
                 onClick={() => {
                   setEditOpen(false)
                   setEditingId(null)
+                  setEditLogoFile(null)
                 }}
               >
                 Cancel

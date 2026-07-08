@@ -1,5 +1,6 @@
 using CareTrack.Application;
 using CareTrack.Application.Common;
+using CareTrack.Domain.Common;
 using CareTrack.Domain.Entities;
 using CareTrack.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
@@ -15,6 +16,12 @@ public class CareTrackDbContext : IdentityDbContext<ApplicationUser>, ICareTrack
     {
         _tenantContext = tenantContext;
     }
+
+    /// <summary>Evaluated per DbContext instance when global query filters run.</summary>
+    public bool TenantIsApolloUser => _tenantContext.IsApolloUser;
+
+    /// <summary>Evaluated per DbContext instance when global query filters run.</summary>
+    public Guid? TenantUniversityId => _tenantContext.UniversityId;
 
     public DbSet<University> Universities => Set<University>();
     public DbSet<Programme> Programmes => Set<Programme>();
@@ -354,21 +361,30 @@ public class CareTrackDbContext : IdentityDbContext<ApplicationUser>, ICareTrack
             e.HasIndex(x => x.Email).IsUnique();
         });
 
-        TenantQueryFilterExtensions.ApplyTenantFilter<Cohort>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<StudentEnrolment>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<HospitalDepartment>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<Supervisor>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<Rotation>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<RotationAssignment>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<LogbookEntry>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<SignOffEscalation>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<SupervisorDelegation>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<SisRosterSyncRun>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<GradeSyncRequest>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<AttendanceRecord>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<HospitalAttendanceFeed>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<Notification>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<CalendarEvent>(builder, _tenantContext);
-        TenantQueryFilterExtensions.ApplyTenantFilter<DiscussionThread>(builder, _tenantContext);
+        ApplyTenantFilter<Cohort>(builder);
+        ApplyTenantFilter<StudentEnrolment>(builder);
+        ApplyTenantFilter<HospitalDepartment>(builder);
+        ApplyTenantFilter<Supervisor>(builder);
+        ApplyTenantFilter<Rotation>(builder);
+        ApplyTenantFilter<RotationAssignment>(builder);
+        ApplyTenantFilter<LogbookEntry>(builder);
+        ApplyTenantFilter<SignOffEscalation>(builder);
+        ApplyTenantFilter<SupervisorDelegation>(builder);
+        ApplyTenantFilter<SisRosterSyncRun>(builder);
+        ApplyTenantFilter<GradeSyncRequest>(builder);
+        ApplyTenantFilter<AttendanceRecord>(builder);
+        ApplyTenantFilter<HospitalAttendanceFeed>(builder);
+        ApplyTenantFilter<Notification>(builder);
+        ApplyTenantFilter<CalendarEvent>(builder);
+        ApplyTenantFilter<DiscussionThread>(builder);
+    }
+
+    private void ApplyTenantFilter<TEntity>(ModelBuilder builder)
+        where TEntity : class, ITenantEntity
+    {
+        builder.Entity<TEntity>().HasQueryFilter(e =>
+            TenantIsApolloUser
+            || !TenantUniversityId.HasValue
+            || e.UniversityId == TenantUniversityId);
     }
 }

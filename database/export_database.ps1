@@ -24,7 +24,19 @@ try {
 
     $generated = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
     $utf8NoBom = New-Object System.Text.UTF8Encoding $false
+    $schemaReset = @"
+-- Clean slate: drop any existing tables (e.g. from a prior EF migration run)
+DROP SCHEMA IF EXISTS public CASCADE;
+CREATE SCHEMA public;
+GRANT ALL ON SCHEMA public TO postgres;
+GRANT ALL ON SCHEMA public TO public;
+
+"@
     $schema = [System.IO.File]::ReadAllText($schemaFile)
+    if (-not $schema.StartsWith("DROP SCHEMA IF EXISTS public CASCADE")) {
+        $schema = $schemaReset + $schema
+        [System.IO.File]::WriteAllText($schemaFile, $schema, $utf8NoBom)
+    }
     $data = [System.IO.File]::ReadAllText($OutputFile)
     $tableCount = ([regex]::Matches($data, '(?m)^-- Table: ')).Count
     $header = @"
@@ -35,9 +47,10 @@ try {
 --
 -- Restore (new database):
 --   1. CREATE DATABASE your_db;
---   2. psql -U postgres -d your_db -f caretrack_full.sql
+--   2. Stop the API (do NOT run dotnet ef database update first)
+--   3. psql -U postgres -d your_db -v ON_ERROR_STOP=1 -f caretrack_full.sql
 --
--- Or use: .\database\restore_database.ps1 -DatabaseName your_db
+-- Or use: .\database\restore_database.ps1 -DatabaseName your_db -UseFullScript
 -- =============================================================================
 
 "@

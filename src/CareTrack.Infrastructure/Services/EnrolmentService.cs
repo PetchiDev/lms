@@ -379,11 +379,27 @@ public class EnrolmentService : IEnrolmentService
         if (!_tenant.IsApolloUser)
             _tenant.EnsureUniversityAccess(request.UniversityId);
 
+        _ = await _db.Universities.AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Id == request.UniversityId, cancellationToken)
+            ?? throw new NotFoundException("University not found.");
+
+        var programmeLinked = await _db.UniversityProgrammes.AsNoTracking()
+            .AnyAsync(up => up.UniversityId == request.UniversityId && up.ProgrammeId == request.ProgrammeId, cancellationToken);
+        if (!programmeLinked)
+            throw new Domain.Exceptions.ValidationException("Programme is not linked to this university.");
+
+        var name = request.Name.Trim();
+        var duplicate = await _db.Cohorts.IgnoreQueryFilters()
+            .AsNoTracking()
+            .AnyAsync(c => c.UniversityId == request.UniversityId && c.Name == name, cancellationToken);
+        if (duplicate)
+            throw new ConflictException($"A cohort named \"{name}\" already exists for this university.");
+
         var cohort = new Cohort
         {
             UniversityId = request.UniversityId,
             ProgrammeId = request.ProgrammeId,
-            Name = request.Name,
+            Name = name,
             IntakeYear = request.IntakeYear,
             CurrentYear = request.CurrentYear,
             CurrentSemester = request.CurrentSemester
@@ -401,11 +417,18 @@ public class EnrolmentService : IEnrolmentService
         if (!_tenant.IsApolloUser && _tenant.UniversityId.HasValue)
             query = query.Where(c => c.UniversityId == _tenant.UniversityId);
 
-        var ids = await query.OrderByDescending(c => c.IntakeYear).Select(c => c.Id).ToListAsync(cancellationToken);
-        var result = new List<CohortResponse>();
-        foreach (var id in ids)
-            result.Add(await MapCohortAsync(id, cancellationToken));
-        return result;
+        return await query
+            .OrderByDescending(c => c.IntakeYear)
+            .Select(c => new CohortResponse(
+                c.Id,
+                c.UniversityId,
+                c.ProgrammeId,
+                c.Name,
+                c.IntakeYear,
+                c.CurrentYear,
+                c.CurrentSemester,
+                c.Programme.Name))
+            .ToListAsync(cancellationToken);
     }
 
     private async Task<StudentEnrolmentResponse> MapStudentAsync(Guid studentId, CancellationToken cancellationToken)
@@ -432,7 +455,8 @@ public class EnrolmentService : IEnrolmentService
         return await _db.Cohorts.AsNoTracking()
             .Where(c => c.Id == id)
             .Select(c => new CohortResponse(c.Id, c.UniversityId, c.ProgrammeId, c.Name, c.IntakeYear, c.CurrentYear, c.CurrentSemester, c.Programme.Name))
-            .FirstAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken)
+            ?? throw new NotFoundException("Cohort not found.");
     }
 
     private sealed class ImportStudentRow
