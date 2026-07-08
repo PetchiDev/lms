@@ -9,9 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CareTrack.Api.Controllers;
 
 [ApiController]
-[ApiVersion("1.0")]
-[Route("api/v{version:apiVersion}/students/me")]
-[Route("api/{version:apiVersion}/students/me")]
+[Route("api/students/me")]
 [Authorize(Roles = nameof(UserRole.Student))]
 public class StudentsController : ControllerBase
 {

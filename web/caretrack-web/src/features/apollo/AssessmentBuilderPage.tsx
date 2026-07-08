@@ -20,7 +20,7 @@ import { DashboardShell, Panel } from '@/components/layout/DashboardShell'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { cn } from '@/lib/utils'
+import { cn, createId } from '@/lib/utils'
 
 interface ModuleSummary {
   moduleId: string
@@ -43,7 +43,7 @@ interface QuestionDraft {
 }
 
 function newQuestion(): QuestionDraft {
-  const base = crypto.randomUUID()
+  const base = createId()
   return {
     key: base,
     questionText: '',
@@ -252,7 +252,7 @@ export function AssessmentBuilderPage() {
           ...q,
           options: [
             ...q.options,
-            { key: crypto.randomUUID(), optionText: '', isCorrect: false },
+            { key: createId(), optionText: '', isCorrect: false },
           ],
         }
       }),

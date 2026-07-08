@@ -8,8 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CareTrack.Api.Controllers;
 
 [ApiController]
-[ApiVersion("1.0")]
-[Route("api/v{version:apiVersion}/programmes")]
+[Route("api/programmes")]
 [Authorize]
 public class ProgrammesController : ControllerBase
 {
@@ -23,7 +22,7 @@ public class ProgrammesController : ControllerBase
     public async Task<ActionResult<ProgrammeResponse>> Create([FromBody] CreateProgrammeRequest request, CancellationToken cancellationToken)
     {
         var result = await _service.CreateAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetStructure), new { id = result.Id, version = "1.0" }, result);
+        return CreatedAtAction(nameof(GetStructure), new { id = result.Id }, result);
     }
 
     [HttpGet]

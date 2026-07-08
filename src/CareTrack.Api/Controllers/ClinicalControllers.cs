@@ -8,8 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CareTrack.Api.Controllers;
 
 [ApiController]
-[Route("api/v{version:apiVersion}/rotations")]
-[ApiVersion("1.0")]
+[Route("api/rotations")]
 [Authorize]
 public class RotationsController : ControllerBase
 {
@@ -58,8 +57,7 @@ public class RotationsController : ControllerBase
 }
 
 [ApiController]
-[Route("api/v{version:apiVersion}/signoffs")]
-[ApiVersion("1.0")]
+[Route("api/signoffs")]
 [Authorize(Roles = "Supervisor")]
 public class SignoffsController : ControllerBase
 {

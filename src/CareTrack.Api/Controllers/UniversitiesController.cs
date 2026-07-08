@@ -9,8 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CareTrack.Api.Controllers;
 
 [ApiController]
-[ApiVersion("1.0")]
-[Route("api/v{version:apiVersion}/universities")]
+[Route("api/universities")]
 [Authorize(Roles = nameof(UserRole.ApolloAdmin) + "," + nameof(UserRole.UniversityAdmin))]
 public class UniversitiesController : ControllerBase
 {
@@ -24,7 +23,7 @@ public class UniversitiesController : ControllerBase
     public async Task<ActionResult<UniversityResponse>> Create([FromBody] CreateUniversityRequest request, CancellationToken cancellationToken)
     {
         var result = await _service.CreateAsync(request, cancellationToken);
-        return CreatedAtAction(nameof(GetById), new { id = result.Id, version = "1.0" }, result);
+        return CreatedAtAction(nameof(GetById), new { id = result.Id }, result);
     }
 
     [HttpGet("{id:guid}")]
@@ -103,8 +102,7 @@ public class UniversitiesController : ControllerBase
 }
 
 [ApiController]
-[ApiVersion("1.0")]
-[Route("api/v{version:apiVersion}/users")]
+[Route("api/users")]
 [Authorize(Roles = nameof(UserRole.ApolloAdmin))]
 public class UsersController : ControllerBase
 {

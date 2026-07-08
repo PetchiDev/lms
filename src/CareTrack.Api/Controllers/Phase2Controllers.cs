@@ -9,8 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CareTrack.Api.Controllers;
 
 [ApiController]
-[Route("api/v{version:apiVersion}/integrations")]
-[ApiVersion("1.0")]
+[Route("api/integrations")]
 [Authorize]
 public class IntegrationsController : ControllerBase
 {
@@ -67,8 +66,7 @@ public class IntegrationsController : ControllerBase
 }
 
 [ApiController]
-[Route("api/v{version:apiVersion}/notifications")]
-[ApiVersion("1.0")]
+[Route("api/notifications")]
 [Authorize]
 public class NotificationsController : ControllerBase
 {
@@ -91,8 +89,7 @@ public class NotificationsController : ControllerBase
 }
 
 [ApiController]
-[Route("api/v{version:apiVersion}/calendar")]
-[ApiVersion("1.0")]
+[Route("api/calendar")]
 [Authorize]
 public class CalendarController : ControllerBase
 {
@@ -113,8 +110,7 @@ public class CalendarController : ControllerBase
 }
 
 [ApiController]
-[Route("api/v{version:apiVersion}/discussions")]
-[ApiVersion("1.0")]
+[Route("api/discussions")]
 [Authorize]
 public class DiscussionsController : ControllerBase
 {
@@ -144,8 +140,7 @@ public class DiscussionsController : ControllerBase
 }
 
 [ApiController]
-[Route("api/v{version:apiVersion}/content/versions")]
-[ApiVersion("1.0")]
+[Route("api/content/versions")]
 [Authorize(Roles = "ApolloAdmin,ApolloFaculty")]
 public class ContentVersionsController : ControllerBase
 {

@@ -9,8 +9,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CareTrack.Api.Controllers;
 
 [ApiController]
-[ApiVersion("1.0")]
-[Route("api/v{version:apiVersion}/enrolments")]
+[Route("api/enrolments")]
 [Authorize(Roles = nameof(UserRole.UniversityAdmin) + "," + nameof(UserRole.ApolloAdmin))]
 public class EnrolmentsController : ControllerBase
 {
@@ -67,8 +66,7 @@ public class EnrolmentsController : ControllerBase
 }
 
 [ApiController]
-[ApiVersion("1.0")]
-[Route("api/v{version:apiVersion}/cohorts")]
+[Route("api/cohorts")]
 [Authorize(Roles = nameof(UserRole.UniversityAdmin) + "," + nameof(UserRole.ApolloAdmin))]
 public class CohortsController : ControllerBase
 {

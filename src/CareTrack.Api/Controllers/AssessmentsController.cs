@@ -8,8 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CareTrack.Api.Controllers;
 
 [ApiController]
-[ApiVersion("1.0")]
-[Route("api/v{version:apiVersion}/assessments")]
+[Route("api/assessments")]
 [Authorize]
 public class AssessmentsController : ControllerBase
 {

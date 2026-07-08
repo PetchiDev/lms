@@ -8,9 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace CareTrack.Api.Controllers;
 
 [ApiController]
-[ApiVersion("1.0")]
-[Route("api/v{version:apiVersion}/platform")]
-[Route("api/{version:apiVersion}/platform")]
+[Route("api/platform")]
 public class PlatformController : ControllerBase
 {
     private readonly IPlatformService _service;

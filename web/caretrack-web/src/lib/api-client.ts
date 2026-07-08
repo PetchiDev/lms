@@ -2,8 +2,18 @@ import axios from 'axios'
 import { authStore } from './auth-store'
 import { clearStudentCache } from './query-client'
 
+function joinUrl(base: string, path: string) {
+  const b = base.replace(/\/+$/, '')
+  const p = path.replace(/^\/+/, '')
+  return `${b}/${p}`
+}
+
+const apiBase = import.meta.env.VITE_API_URL
+  ? joinUrl(import.meta.env.VITE_API_URL, 'api')
+  : '/api'
+
 export const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: apiBase,
   headers: { 'Content-Type': 'application/json' },
 })
 
