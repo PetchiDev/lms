@@ -93,6 +93,95 @@ public class ContentService : IContentService
         return lessonIds.Count;
     }
 
+    public async Task<MapProgrammesToUniversitiesResponse> MapProgrammesToUniversitiesAsync(
+        MapProgrammesToUniversitiesRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (_tenant.Role != UserRole.ApolloAdmin && _tenant.Role != UserRole.ApolloFaculty)
+            throw new ForbiddenException("Only Apollo users can map programme content.");
+
+        var programmeIds = request.ProgrammeIds?.Distinct().ToList() ?? [];
+        var universityIds = request.UniversityIds?.Distinct().ToList() ?? [];
+
+        if (programmeIds.Count == 0 || universityIds.Count == 0)
+            throw new ValidationException("Select at least one programme and one university.");
+
+        var programmeCount = await _db.Programmes.AsNoTracking()
+            .CountAsync(p => programmeIds.Contains(p.Id), cancellationToken);
+        if (programmeCount != programmeIds.Count)
+            throw new NotFoundException("One or more programmes were not found.");
+
+        var universityCount = await _db.Universities.AsNoTracking()
+            .CountAsync(u => universityIds.Contains(u.Id), cancellationToken);
+        if (universityCount != universityIds.Count)
+            throw new NotFoundException("One or more universities were not found.");
+
+        var programmeLinksAdded = 0;
+        var modulesIncluded = 0;
+        var lessonsMapped = 0;
+
+        foreach (var universityId in universityIds)
+        {
+            foreach (var programmeId in programmeIds)
+            {
+                var linked = await _db.UniversityProgrammes.AnyAsync(
+                    up => up.UniversityId == universityId && up.ProgrammeId == programmeId,
+                    cancellationToken);
+
+                if (!linked)
+                {
+                    _db.UniversityProgrammes.Add(new UniversityProgramme
+                    {
+                        UniversityId = universityId,
+                        ProgrammeId = programmeId,
+                    });
+                    programmeLinksAdded++;
+                    await _db.SaveChangesAsync(cancellationToken);
+                }
+
+                await EnsureDefaultCohortAsync(universityId, programmeId, cancellationToken);
+
+                var moduleIds = await _db.Modules.AsNoTracking()
+                    .Where(m => m.Semester.ProgrammeYear.ProgrammeId == programmeId)
+                    .Select(m => m.Id)
+                    .ToListAsync(cancellationToken);
+
+                modulesIncluded += moduleIds.Count;
+
+                foreach (var moduleId in moduleIds)
+                {
+                    var lessonIds = await _db.Lessons.AsNoTracking()
+                        .Where(l => l.ModuleId == moduleId)
+                        .Select(l => l.Id)
+                        .ToListAsync(cancellationToken);
+
+                    foreach (var lessonId in lessonIds)
+                    {
+                        var before = await _db.ContentPublications.AsNoTracking()
+                            .CountAsync(
+                                p => p.LessonId == lessonId && p.UniversityId == universityId,
+                                cancellationToken);
+
+                        await PublishAsync(
+                            lessonId,
+                            new PublishLessonRequest([universityId]),
+                            cancellationToken);
+
+                        var after = await _db.ContentPublications.AsNoTracking()
+                            .CountAsync(
+                                p => p.LessonId == lessonId && p.UniversityId == universityId,
+                                cancellationToken);
+
+                        if (after > before)
+                            lessonsMapped++;
+                    }
+                }
+            }
+        }
+
+        return new MapProgrammesToUniversitiesResponse(programmeLinksAdded, modulesIncluded, lessonsMapped);
+    }
+
     public async Task PublishProgrammeLessonsToUniversityAsync(
         Guid programmeId,
         Guid universityId,

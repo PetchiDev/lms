@@ -37,6 +37,15 @@ public record PublishLessonRequest(IReadOnlyList<Guid>? UniversityIds);
 
 public record PublishModuleRequest(IReadOnlyList<Guid>? UniversityIds);
 
+public record MapProgrammesToUniversitiesRequest(
+    IReadOnlyList<Guid> ProgrammeIds,
+    IReadOnlyList<Guid> UniversityIds);
+
+public record MapProgrammesToUniversitiesResponse(
+    int ProgrammeLinksAdded,
+    int ModulesIncluded,
+    int LessonsMapped);
+
 public record ModulePickerResponse(
     Guid ModuleId,
     string ModuleTitle,

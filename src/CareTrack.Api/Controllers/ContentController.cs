@@ -27,6 +27,13 @@ public class ContentController : ControllerBase
     public async Task<ActionResult<IReadOnlyList<LessonListItemResponse>>> GetModuleLessons(Guid moduleId, CancellationToken cancellationToken)
         => Ok(await _service.GetModuleLessonsAsync(moduleId, cancellationToken));
 
+    [HttpPost("programmes/map")]
+    [ProducesResponseType(typeof(MapProgrammesToUniversitiesResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<MapProgrammesToUniversitiesResponse>> MapProgrammesToUniversities(
+        [FromBody] MapProgrammesToUniversitiesRequest request,
+        CancellationToken cancellationToken)
+        => Ok(await _service.MapProgrammesToUniversitiesAsync(request, cancellationToken));
+
     [HttpPost("modules/{moduleId:guid}/publish")]
     [ProducesResponseType(typeof(object), StatusCodes.Status200OK)]
     public async Task<ActionResult<object>> PublishModule(Guid moduleId, [FromBody] PublishModuleRequest request, CancellationToken cancellationToken)

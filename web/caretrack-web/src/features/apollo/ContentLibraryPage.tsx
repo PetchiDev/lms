@@ -69,7 +69,10 @@ export function ContentLibraryPage() {
 
   // Publish
   const [selectedUniversities, setSelectedUniversities] = useState<string[]>([])
+  const [mapProgrammeIds, setMapProgrammeIds] = useState<string[]>([])
+  const [mapUniversityIds, setMapUniversityIds] = useState<string[]>([])
   const [publishMessage, setPublishMessage] = useState<string | null>(null)
+  const [mapMessage, setMapMessage] = useState<string | null>(null)
   const [uploadMessage, setUploadMessage] = useState<string | null>(null)
   const [workflowMessage, setWorkflowMessage] = useState<string | null>(null)
 
@@ -329,6 +332,27 @@ export function ContentLibraryPage() {
     },
   })
 
+  const mapProgrammes = useMutation({
+    mutationFn: async () =>
+      api.post('/content/programmes/map', {
+        programmeIds: mapProgrammeIds,
+        universityIds: mapUniversityIds,
+      }),
+    onSuccess: (res) => {
+      const { programmeLinksAdded, modulesIncluded, lessonsMapped } = res.data
+      setMapMessage(
+        `Mapped ${mapProgrammeIds.length} programme(s) to ${mapUniversityIds.length} universit${mapUniversityIds.length === 1 ? 'y' : 'ies'} — ${modulesIncluded} module(s), ${lessonsMapped} lesson(s) published (${programmeLinksAdded} new programme link${programmeLinksAdded === 1 ? '' : 's'}).`,
+      )
+      notify.success('Programmes mapped to universities.')
+      queryClient.invalidateQueries({ queryKey: ['content-modules'] })
+      queryClient.invalidateQueries({ queryKey: ['universities'] })
+    },
+    onError: (err) => {
+      setMapMessage(getErrorMessage(err))
+      notify.error(err)
+    },
+  })
+
   const publishModule = useMutation({
     mutationFn: async () => {
       const ids = selectedUniversities.length > 0 ? selectedUniversities : null
@@ -389,6 +413,29 @@ export function ContentLibraryPage() {
     }
   }
 
+  function toggleMapProgramme(id: string) {
+    setMapProgrammeIds((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id],
+    )
+  }
+
+  function toggleMapUniversity(id: string) {
+    setMapUniversityIds((prev) =>
+      prev.includes(id) ? prev.filter((u) => u !== id) : [...prev, id],
+    )
+  }
+
+  function selectAllMapProgrammes() {
+    const all = (programmes.data ?? []).map((p: { id: string }) => p.id)
+    setMapProgrammeIds(mapProgrammeIds.length === all.length ? [] : all)
+  }
+
+  function selectAllMapUniversities() {
+    setMapUniversityIds(mapUniversityIds.length === uniList.length ? [] : uniList.map((u) => u.id))
+  }
+
+  const programmeList: { id: string; name: string; code?: string }[] = programmes.data ?? []
+
   async function uploadAsset(lessonId: string, file: File) {
     setUploadMessage(null)
     try {
@@ -434,6 +481,125 @@ export function ContentLibraryPage() {
       navItems={navItems}
     >
       <div ref={animRef} className="mx-auto max-w-4xl space-y-8">
+        {isAdmin && (
+          <Panel title="Map programmes to universities">
+            <p className="mb-4 text-sm text-slate-600">
+              Select programmes and partner universities. On submit, programmes with all modules and lessons are linked for college admins.
+            </p>
+            <div className="grid gap-6 md:grid-cols-2">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Programmes</Label>
+                  {programmeList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={selectAllMapProgrammes}
+                      className="text-xs font-medium text-[#2081A1] hover:underline"
+                    >
+                      {mapProgrammeIds.length === programmeList.length ? 'Deselect all' : 'Select all'}
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
+                  {programmeList.length === 0 ? (
+                    <p className="text-sm text-slate-500">No programmes found.</p>
+                  ) : (
+                    programmeList.map((p) => (
+                      <label
+                        key={p.id}
+                        className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition hover:bg-slate-50 ${
+                          mapProgrammeIds.includes(p.id) ? 'bg-[#2081A1]/5 ring-1 ring-[#2081A1]/30' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={mapProgrammeIds.includes(p.id)}
+                          onChange={() => toggleMapProgramme(p.id)}
+                          className="h-4 w-4 rounded border-slate-300 text-[#2081A1] focus:ring-[#2081A1]"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{p.name}</p>
+                          {p.code && <p className="text-xs text-slate-500">{p.code}</p>}
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-slate-500">
+                  {mapProgrammeIds.length} programme{mapProgrammeIds.length === 1 ? '' : 's'} selected
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Universities</Label>
+                  {uniList.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={selectAllMapUniversities}
+                      className="text-xs font-medium text-[#2081A1] hover:underline"
+                    >
+                      {mapUniversityIds.length === uniList.length ? 'Deselect all' : 'Select all'}
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-56 space-y-2 overflow-y-auto rounded-xl border border-slate-200 bg-white p-3">
+                  {uniList.length === 0 ? (
+                    <p className="text-sm text-slate-500">No universities found.</p>
+                  ) : (
+                    uniList.map((u) => (
+                      <label
+                        key={u.id}
+                        className={`flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 transition hover:bg-slate-50 ${
+                          mapUniversityIds.includes(u.id) ? 'bg-[#2081A1]/5 ring-1 ring-[#2081A1]/30' : ''
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={mapUniversityIds.includes(u.id)}
+                          onChange={() => toggleMapUniversity(u.id)}
+                          className="h-4 w-4 rounded border-slate-300 text-[#2081A1] focus:ring-[#2081A1]"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900">{u.name}</p>
+                          <p className="text-xs text-slate-500">{u.domain}</p>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                <p className="text-xs text-slate-500">
+                  {mapUniversityIds.length} universit{mapUniversityIds.length === 1 ? 'y' : 'ies'} selected
+                </p>
+              </div>
+            </div>
+
+            <Button
+              className="mt-4 bg-[#2081A1]"
+              onClick={() => mapProgrammes.mutate()}
+              disabled={
+                mapProgrammes.isPending ||
+                mapProgrammeIds.length === 0 ||
+                mapUniversityIds.length === 0
+              }
+            >
+              <Send className="mr-2 h-4 w-4" />
+              {mapProgrammes.isPending ? 'Mapping…' : 'Map to selected universities'}
+            </Button>
+            {mapMessage && (
+              <p
+                className={`mt-3 text-sm ${
+                  mapMessage.includes('Mapped') || mapMessage.includes('module')
+                    ? 'text-emerald-600'
+                    : 'text-red-600'
+                }`}
+              >
+                {mapMessage}
+              </p>
+            )}
+          </Panel>
+        )}
+
         {false && (
         <Panel title="Map existing programme content">
           <p className="mb-4 text-sm text-slate-600">

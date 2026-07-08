@@ -14,6 +14,9 @@ public interface IContentService
     Task<LessonResponse> UpdateStatusAsync(Guid id, UpdateLessonStatusRequest request, CancellationToken cancellationToken = default);
     Task PublishAsync(Guid id, PublishLessonRequest request, CancellationToken cancellationToken = default);
     Task<int> PublishModuleAsync(Guid moduleId, PublishModuleRequest request, CancellationToken cancellationToken = default);
+    Task<MapProgrammesToUniversitiesResponse> MapProgrammesToUniversitiesAsync(
+        MapProgrammesToUniversitiesRequest request,
+        CancellationToken cancellationToken = default);
     Task PublishProgrammeLessonsToUniversityAsync(Guid programmeId, Guid universityId, CancellationToken cancellationToken = default);
     Task ApproveReviewAsync(Guid id, CancellationToken cancellationToken = default);
 }
