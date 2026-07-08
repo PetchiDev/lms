@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, CheckCircle, CheckCircle2, Download, Play } from 'lucide-react'
+import { ArrowLeft, CheckCircle, CheckCircle2, Download, FileText, Play } from 'lucide-react'
 import { api } from '@/lib/api-client'
 import { notify } from '@/lib/notify'
 import { authStore } from '@/lib/auth-store'
@@ -11,6 +11,8 @@ import { animateUnlock } from '@/animations/usePageTransition'
 import { StudentShell } from '@/components/layout/StudentShell'
 import { Button } from '@/components/ui/button'
 import { ProgressBar } from '@/components/ui/label'
+import { Modal } from '@/components/ui/modal'
+import { assetUrl } from '@/lib/asset-url'
 
 function useStudentShellProps() {
   const auth = authStore.get()!
@@ -208,14 +210,72 @@ export function QuizPage() {
     certificate?: { pdfBlobUrl?: string; certificateNumber?: string }
     semesterAdvance?: { completed: boolean; message: string; newYear?: number; newSemester?: number }
   } | null>(null)
+  const [marksheetOpen, setMarksheetOpen] = useState(false)
   const shell = useStudentShellProps()
   const queryClient = useQueryClient()
+  const auth = authStore.get()!
 
   const { data: quiz } = useQuery({
     queryKey: studentQueryKey('quiz', moduleId),
     queryFn: async () => (await api.get(`/students/me/modules/${moduleId}/quiz`)).data,
     enabled: !!moduleId,
   })
+
+  const { data: platformBranding } = useQuery({
+    queryKey: ['platform-branding'],
+    queryFn: async () => (await api.get('/platform/branding')).data as { logoUrl?: string | null },
+    enabled: !auth.universityLogoUrl,
+    staleTime: 5 * 60 * 1000,
+  })
+
+  const marksheetModel = useMemo(() => {
+    const now = new Date()
+    const score = result?.scorePercent ?? 0
+    const course = quiz?.title ?? 'Assessment'
+    const orgName = (shell.tenantLabel?.split('·')?.[0] ?? '').trim() || 'University'
+    const issuedDate = now.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })
+    const logo =
+      auth.universityLogoUrl ||
+      assetUrl(platformBranding?.logoUrl) ||
+      '/apollo_logo.png'
+
+    return {
+      orgName,
+      logo,
+      studentName: shell.userName,
+      course,
+      scorePercent: score,
+      statusLabel: score >= 60 ? 'PASS' : 'ATTEMPTED',
+      issuedDate,
+      certificateNumber: result?.certificate?.certificateNumber ?? '',
+      primaryColor: '#003366',
+      accentColor: '#C9A227',
+      leftSignatoryTitle: 'Controller of Examinations',
+      rightSignatoryTitle: 'Head of Department',
+      leftSignature: null,
+      rightSignature: null,
+    }
+  }, [auth.universityLogoUrl, platformBranding, quiz?.title, result?.certificate?.certificateNumber, result?.scorePercent, shell.tenantLabel, shell.userName])
+
+  async function downloadMarksheetPdf() {
+    if (!quiz) return
+    try {
+      const res = await api.get(`/students/me/quizzes/${quiz.id}/marksheet.pdf`, { responseType: 'blob' })
+      const blob = new Blob([res.data], { type: 'application/pdf' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      const contentDisposition = (res.headers?.['content-disposition'] as string | undefined) ?? ''
+      const match = /filename="?([^"]+)"?/i.exec(contentDisposition)
+      a.href = url
+      a.download = match?.[1] ?? 'marksheet.pdf'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } catch (err) {
+      notify.error(err)
+    }
+  }
 
   async function submit() {
     if (!quiz) return
@@ -250,13 +310,17 @@ export function QuizPage() {
           <div className={`mt-8 rounded-2xl border p-8 text-center ${result.passed ? 'border-emerald-200 bg-emerald-50' : 'border-red-200 bg-red-50'}`}>
             <p className="font-display text-2xl font-bold">{result.passed ? '🎉 Passed!' : 'Keep learning'}</p>
             <p className="mt-2 text-lg">Score: {result.scorePercent}%</p>
-            {result.passed && result.scorePercent >= 60 && result.certificate?.pdfBlobUrl && (
-              <Button className="mt-4 gap-2 bg-[#2d5f5a]" asChild>
-                <a href={result.certificate.pdfBlobUrl} download target="_blank" rel="noreferrer">
+            {result.passed && result.scorePercent >= 60 && (
+              <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-center">
+                <Button className="gap-2 bg-[#2d5f5a]" onClick={() => setMarksheetOpen(true)}>
+                  <FileText className="h-4 w-4" />
+                  View marksheet
+                </Button>
+                <Button className="gap-2 bg-[#2081A1] hover:bg-[#1a6d89]" onClick={downloadMarksheetPdf}>
                   <Download className="h-4 w-4" />
-                  Download certificate (PDF)
-                </a>
-              </Button>
+                  Download marksheet (PDF)
+                </Button>
+              </div>
             )}
             {result.passed && result.scorePercent >= 60 && (
               <p className="mt-3 text-sm text-emerald-700">
@@ -305,6 +369,86 @@ export function QuizPage() {
           </div>
         )}
       </div>
+
+      <Modal open={marksheetOpen} onClose={() => setMarksheetOpen(false)} title="Marksheet" size="xl">
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-gradient-to-br from-[#2081A1]/10 via-white to-[#C9A227]/10 p-6">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-4">
+                {marksheetModel.logo && (
+                  <img src={marksheetModel.logo} alt="Logo" className="h-12 w-auto rounded-md bg-white object-contain p-1 shadow-sm" />
+                )}
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-[0.22em] text-slate-500">Official Marksheet</p>
+                  <h2 className="mt-1 font-display text-xl font-bold text-slate-900">{marksheetModel.orgName}</h2>
+                  <p className="mt-1 text-sm text-slate-600">Issued on {marksheetModel.issuedDate}</p>
+                </div>
+              </div>
+              <div className="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-extrabold tracking-widest text-emerald-700">
+                {marksheetModel.statusLabel}
+              </div>
+            </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Student Name</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{marksheetModel.studentName}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5">
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Course / Assessment</p>
+              <p className="mt-2 text-lg font-semibold text-slate-900">{marksheetModel.course}</p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 md:col-span-2">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Score</p>
+                  <p className="mt-2 text-4xl font-black" style={{ color: marksheetModel.primaryColor }}>
+                    {marksheetModel.scorePercent}%
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">Pass Mark</p>
+                  <p className="mt-2 text-lg font-semibold text-slate-900">60%</p>
+                  <p className="mt-1 text-xs text-slate-500">{marksheetModel.certificateNumber ? `Ref: ${marksheetModel.certificateNumber}` : 'Ref: —'}</p>
+                </div>
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-full rounded-full"
+                  style={{
+                    width: `${Math.max(0, Math.min(100, marksheetModel.scorePercent))}%`,
+                    background: `linear-gradient(90deg, ${marksheetModel.primaryColor}, ${marksheetModel.accentColor})`,
+                  }}
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-2 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center">
+              {marksheetModel.leftSignature && <img src={marksheetModel.leftSignature} alt="Signature" className="mx-auto h-14 w-auto object-contain" />}
+              <div className="mt-4 border-t-2 border-slate-200 pt-2 text-xs font-extrabold uppercase tracking-[0.22em] text-slate-800">
+                {marksheetModel.leftSignatoryTitle}
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 text-center">
+              {marksheetModel.rightSignature && <img src={marksheetModel.rightSignature} alt="Signature" className="mx-auto h-14 w-auto object-contain" />}
+              <div className="mt-4 border-t-2 border-slate-200 pt-2 text-xs font-extrabold uppercase tracking-[0.22em] text-slate-800">
+                {marksheetModel.rightSignatoryTitle}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button variant="outline" onClick={() => setMarksheetOpen(false)}>Close</Button>
+            <Button className="gap-2 bg-[#2081A1] hover:bg-[#1a6d89]" onClick={downloadMarksheetPdf}>
+              <Download className="h-4 w-4" />
+              Download marksheet (PDF)
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </StudentShell>
   )
 }

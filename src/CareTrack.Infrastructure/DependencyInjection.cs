@@ -49,6 +49,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Interfaces.ILearningService, Services.LearningService>();
         services.AddScoped<Application.Interfaces.IAssessmentService, Services.AssessmentService>();
         services.AddScoped<Application.Interfaces.ICertificateService, Services.CertificateService>();
+        services.AddScoped<Application.Interfaces.IMarksheetService, Services.MarksheetService>();
         services.AddScoped<Application.Interfaces.IReportingService, Services.ReportingService>();
         services.AddScoped<Application.Interfaces.IClinicalService, Services.ClinicalService>();
         services.AddScoped<Application.Interfaces.IIntegrationService, Services.IntegrationService>();

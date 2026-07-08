@@ -11,6 +11,7 @@ namespace CareTrack.Api.Controllers;
 [ApiController]
 [ApiVersion("1.0")]
 [Route("api/v{version:apiVersion}/students/me")]
+[Route("api/{version:apiVersion}/students/me")]
 [Authorize(Roles = nameof(UserRole.Student))]
 public class StudentsController : ControllerBase
 {
@@ -18,17 +19,20 @@ public class StudentsController : ControllerBase
     private readonly IAssessmentService _assessmentService;
     private readonly IClinicalService _clinicalService;
     private readonly ICertificateService _certificateService;
+    private readonly IMarksheetService _marksheetService;
 
     public StudentsController(
         ILearningService learningService,
         IAssessmentService assessmentService,
         IClinicalService clinicalService,
-        ICertificateService certificateService)
+        ICertificateService certificateService,
+        IMarksheetService marksheetService)
     {
         _learningService = learningService;
         _assessmentService = assessmentService;
         _clinicalService = clinicalService;
         _certificateService = certificateService;
+        _marksheetService = marksheetService;
     }
 
     [HttpGet("dashboard")]
@@ -83,6 +87,15 @@ public class StudentsController : ControllerBase
     [ProducesResponseType(typeof(IReadOnlyList<Application.DTOs.Assessment.QuizAttemptResponse>), StatusCodes.Status200OK)]
     public async Task<ActionResult<IReadOnlyList<Application.DTOs.Assessment.QuizAttemptResponse>>> GetAttempts(Guid quizId, CancellationToken cancellationToken)
         => Ok(await _assessmentService.GetAttemptsAsync(quizId, cancellationToken));
+
+    /// <summary>Downloads a marksheet PDF for the latest submitted attempt of a quiz.</summary>
+    [HttpGet("quizzes/{quizId:guid}/marksheet.pdf")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> DownloadMarksheet(Guid quizId, CancellationToken cancellationToken)
+    {
+        var (pdfBytes, fileName) = await _marksheetService.RenderForCurrentStudentAsync(quizId, cancellationToken);
+        return File(pdfBytes, "application/pdf", fileName);
+    }
 
     [HttpPost("semester/complete")]
     [ProducesResponseType(typeof(Application.DTOs.Assessment.SemesterCompletionResponse), StatusCodes.Status200OK)]
